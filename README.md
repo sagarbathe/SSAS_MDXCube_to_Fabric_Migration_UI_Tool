@@ -48,8 +48,17 @@ links to the section with full details/troubleshooting.
    and a Fabric workspace + service principal ready (Phase 2 only needs the
    service principal, not SSAS access).
 2. **Find your x64 Python interpreter** ([Section 4](#4-install-dependencies)) -
-   run `python -c "import sysconfig; print(sysconfig.get_platform())"` and
-   confirm `win-amd64`, not `win-arm64`. Note its full path.
+   run `python -c "import sysconfig; print(sysconfig.get_platform())"`.
+   - If it prints `win-amd64`, note that `python.exe`'s full path (run
+     `where python` to see it) and skip to step 3.
+   - If it prints `win-arm64`, that interpreter **cannot** be used - install
+     a separate x64 Python from the "Windows installer (64-bit)" at
+     [python.org/downloads/windows](https://www.python.org/downloads/windows/)
+     (it runs fine under Windows-on-ARM's x64 emulation), then note the
+     full path to the `python.exe` it installed (e.g.
+     `C:\Users\<you>\AppData\Local\Programs\Python\Python312\python.exe`,
+     or wherever you chose during setup). Use **that** path - not the
+     ARM64 one - for every command below and in the rest of this README.
 3. **Create an isolated environment for the pipeline dependencies** and
    install `requirements.txt` into it (keeps these packages out of your
    global/system Python and avoids clashing with other projects):
