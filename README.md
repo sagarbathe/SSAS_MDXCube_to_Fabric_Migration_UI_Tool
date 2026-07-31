@@ -47,18 +47,42 @@ links to the section with full details/troubleshooting.
    have the right Windows account/roles for SSAS (AMO), SQL Server access,
    and a Fabric workspace + service principal ready (Phase 2 only needs the
    service principal, not SSAS access).
-2. **Find your x64 Python interpreter** ([Section 4](#4-install-dependencies)) -
-   run `python -c "import sysconfig; print(sysconfig.get_platform())"`.
-   - If it prints `win-amd64`, note that `python.exe`'s full path (run
-     `where python` to see it) and skip to step 3.
-   - If it prints `win-arm64`, that interpreter **cannot** be used - install
-     a separate x64 Python from the "Windows installer (64-bit)" at
-     [python.org/downloads/windows](https://www.python.org/downloads/windows/)
-     (it runs fine under Windows-on-ARM's x64 emulation), then note the
-     full path to the `python.exe` it installed (e.g.
-     `C:\Users\<you>\AppData\Local\Programs\Python\Python312\python.exe`,
-     or wherever you chose during setup). Use **that** path - not the
-     ARM64 one - for every command below and in the rest of this README.
+2. **Find (or install) an x64 Python interpreter** ([Section 4](#4-install-dependencies)):
+   - **If `python` isn't recognized at all** (`'python' is not recognized as
+     an internal or external command`), you don't have Python installed -
+     go straight to the "install a new x64 Python" step below.
+   - **If `python` is recognized**, check which platform it targets:
+     ```powershell
+     python -c "import sysconfig; print(sysconfig.get_platform())"
+     ```
+     - `win-amd64` -> this is an x64 interpreter, safe to use. Note its
+       full path with `where python` (the first line it prints) and skip
+       to step 3.
+     - `win-arm64` -> this interpreter **cannot** be used for this tool;
+       continue below to install a separate x64 Python.
+   - **To install a new x64 Python** (needed for either case above):
+     1. Go to [python.org/downloads/windows](https://www.python.org/downloads/windows/)
+        and download the **"Windows installer (64-bit)"** for a recent
+        3.x release (this runs fine under Windows-on-ARM's x64 emulation
+        even on an ARM64 machine).
+     2. Run the installer. On the first screen, check **"Add python.exe to
+        PATH"**, then choose **Install Now** (the default install location
+        is fine, e.g. `C:\Users\<you>\AppData\Local\Programs\Python\Python312\`).
+     3. Open a **new** PowerShell/command prompt window (so the updated
+        PATH takes effect) and verify:
+        ```powershell
+        python -c "import sysconfig; print(sysconfig.get_platform())"
+        ```
+        This should now print `win-amd64`. If it still shows `win-arm64`
+        or "not recognized", use the full path to the new install directly
+        instead of relying on `python` resolving via PATH, e.g.
+        `where python` to list every `python.exe` found, or browse to
+        the folder from step 2 above.
+     4. Note the full path to this `python.exe` - you'll use it explicitly
+        (instead of the bare `python` command) for every remaining step,
+        since a machine can have both an ARM64 and an x64 Python installed
+        side by side.
+
 3. **Create an isolated environment for the pipeline dependencies** and
    install `requirements.txt` into it (keeps these packages out of your
    global/system Python and avoids clashing with other projects):
@@ -66,6 +90,22 @@ links to the section with full details/troubleshooting.
    <path-to-x64-python>\python.exe -m venv .venv
    .venv\Scripts\python.exe -m pip install -r requirements.txt
    ```
+   - You do **not** need to "activate" this venv (`.venv\Scripts\activate`)
+     - every command in this README calls `.venv\Scripts\python.exe`
+     directly by its full/relative path, which works the same either way
+     and sidesteps any PowerShell execution-policy prompts around
+     activation scripts.
+   - If `pip install` fails with a wall of errors ending in something like
+     `Microsoft Visual C++ 14.0 or greater is required`, `ERROR: No
+     matching distribution found for ...`, or times out entirely, re-check
+     you used the **x64** `python.exe` from step 2 (not an ARM64 one still
+     resolving via a bare `python` call), and that you have a working
+     internet connection / no restrictive proxy blocking `pypi.org` (ask
+     your network admin about a corporate pip proxy/index if so).
+   - If it fails with `SSLCertVerificationError` on a corporate machine,
+     that's usually a corporate TLS-inspection proxy - ask your IT/network
+     admin for the internal certificate bundle or proxy pip settings
+     rather than disabling certificate verification.
 4. **Create a second, isolated environment for the Web UI itself** and
    install its (much smaller) dependency set - see [Section 11](#11-web-ui)
    for why this must be a *separate* environment from step 3:
@@ -73,27 +113,69 @@ links to the section with full details/troubleshooting.
    <path-to-x64-python>\python.exe -m venv .venv-ui
    .venv-ui\Scripts\python.exe -m pip install -r requirements-ui.txt
    ```
+   Same troubleshooting as step 3 applies if this install fails.
 5. **Launch the Web UI**:
    ```powershell
    .venv-ui\Scripts\python.exe -m streamlit run ssas_fabric_migrator\ui\app.py
    ```
    This opens `http://localhost:8501` in your browser (or prints the URL
    to open manually).
+   - `'streamlit' is not recognized`/module-not-found errors mean step 4's
+     install didn't complete - re-run it and check for errors.
+   - `Port 8501 is already in use` (e.g. another Streamlit app is running)
+     - pick a different port: add `--server.port 8502` (or any free port)
+     to the command above.
+   - A Windows Firewall prompt on first launch is expected the first time
+     any app binds to a network port - allow it on **Private networks**
+     at minimum so you (and others on the same network, per
+     [Section 11](#11-web-ui)) can reach it.
 6. **On the Configuration tab**, set "Python executable" to the
    **step-3 `.venv\Scripts\python.exe` path** (not `.venv-ui`'s
    interpreter - see [Section 11](#11-web-ui) for why), fill in your
    SSAS/SQL/Fabric connection details, and click **Save to env file** to
    write `config/.env`.
+   - If clicking a step button shows `[Errno 2] No such file or
+     directory: '...\ssas_fabric_migrator\ui\app.py'` pointing at a path
+     that **isn't** this repo, you launched Streamlit from a different
+     repo folder (e.g. the pro-code-only repo, which has no `ui/`
+     directory) - stop the app, `cd` into **this** repo's root, and
+     re-run step 5 from there.
+   - If a pipeline step fails immediately with a Python traceback instead
+     of running, double-check the "Python executable" field points at
+     `.venv\Scripts\python.exe` (step 3's environment, which has
+     `pyarrow`/`pythonnet`/etc. installed), not `.venv-ui`'s interpreter or
+     a bare `python`.
 7. **Run Phase 1: On-Prem** tab, in order - Extract, Feasibility, Generate
    model, Migration report ([Section 5](#5-phase-1-on-prem-ssas--sql-server)).
    Review `feasibility_report.json` and `MIGRATION_REPORT.md` in the
    **Reports** tab before continuing.
+   - **Extract** failing with an AMO connection/permission error usually
+     means the Windows account running the app lacks the **Server
+     Administrator** (or Database Administrator) role on the SSAS instance
+     - see the Phase 1 prerequisites table in [Section 3](#3-prerequisites).
+   - A `pythonnet`/`clr` import error on Extract means the .NET Framework
+     4.x runtime (required by AMO) isn't installed - also covered in
+     [Section 3](#3-prerequisites).
 8. **Run Phase 2: Fabric** tab, in order - create/verify Lakehouse, migrate
    data, deploy the semantic model ([Section 6](#6-phase-2-fabric-connected)).
+   - Fabric REST calls failing with `401`/`403` usually mean either the
+     service principal isn't a **Contributor** (or higher) on the target
+     workspace, or the tenant setting **"Service principals can use Fabric
+     APIs"** isn't enabled - both covered by the Phase 2 prerequisites
+     table in [Section 3](#3-prerequisites) and [Step 0](#step-0-one-time-fabric--service-principal-setup).
+   - If `migrate-data` fails to reach the on-prem SQL Server, confirm this
+     machine has network line-of-sight to it (row 7 of the Phase 2
+     prerequisites table) - otherwise use the **Offline transfer** option
+     instead ([Section 6, Option B](#6-phase-2-fabric-connected)).
 9. **Verify in Fabric** - open the deployed semantic model in the Fabric
    workspace, confirm the Lakehouse's Delta tables are populated, and open
    the model in Power BI Desktop/service to spot-check a few measures
    against the original cube.
+   - If the report fails to load with a `Missing_References` (or similar
+     field-not-found) error, the account/service principal viewing the
+     report needs **"Read all OneLake data" (ReadAll)** permission on the
+     Lakehouse - a SQL-endpoint-only **ReadData** role is not sufficient
+     for Direct Lake reports.
 
 If any step fails, check the relevant numbered section above for
 troubleshooting notes, or the [Limitations](#10-limitations) section for
@@ -309,10 +391,21 @@ python -c "import sysconfig; print(sysconfig.get_platform())"
 
 - `win-amd64` -> this is an x64 interpreter, safe to use directly.
 - `win-arm64` -> this is the ARM64 interpreter; you need a **separate x64
-  Python install** instead (e.g. download the "Windows installer (64-bit)"
-  from python.org, which runs fine under Windows-on-ARM's x64 emulation).
-  Find/confirm its path with `where python` (it will list every `python.exe`
-  on PATH) or just note the folder you installed it to.
+  Python install** instead (see below).
+- `'python' is not recognized...` -> Python isn't installed at all; see
+  below.
+
+**If you need to install an x64 Python** (either because none is
+installed, or the one on PATH is `win-arm64`): download the **"Windows
+installer (64-bit)"** for a recent 3.x release from
+[python.org/downloads/windows](https://www.python.org/downloads/windows/)
+(this runs fine even on a Windows-on-ARM machine, via x64 emulation), run
+it, check **"Add python.exe to PATH"** on the first screen, then click
+**Install Now**. Open a **new** terminal window afterward (so PATH
+changes take effect) and re-run the `sysconfig.get_platform()` check
+above to confirm `win-amd64`. Find/confirm its path with `where python`
+(it will list every `python.exe` on PATH, in priority order) or just note
+the folder you installed it to.
 
 Once you have the x64 interpreter's path, **always call it explicitly**
 rather than relying on bare `python`/`pip` (which may keep resolving to
