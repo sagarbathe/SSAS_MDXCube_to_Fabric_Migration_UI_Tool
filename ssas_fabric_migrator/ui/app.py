@@ -436,8 +436,61 @@ def render_config_tab():
     )
 
 
+def _render_markdown_report_view(path: str, title: str, docx_filename: str, key_prefix: str, not_found_message: str):
+    """Shared 'view + Download as Word' block for a generated Markdown report -
+    used by both the Reports tab and (per-step) the Phase 1 tab."""
+    if os.path.exists(path):
+        with open(path, "r", encoding="utf-8") as f:
+            text = f.read()
+        try:
+            st.download_button(
+                "\U0001F4C4 Download as Word (.docx)",
+                data=_report_as_docx(text, title),
+                file_name=docx_filename,
+                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                key=f"{key_prefix}_docx",
+            )
+        except ImportError:
+            st.warning(
+                "Install `python-docx` in the UI environment to enable Word export: "
+                "`.venv-ui\\Scripts\\python.exe -m pip install python-docx`"
+            )
+        st.markdown(text)
+    else:
+        st.info(not_found_message)
+
+
+def _render_feasibility_report_view(path: str, key_prefix: str, not_found_message: str):
+    """Shared 'view + Download as Excel' block for feasibility_report.json -
+    used by both the Reports tab and (per-step) the Phase 1 tab."""
+    if os.path.exists(path):
+        with open(path, "r", encoding="utf-8") as f:
+            feasibility_report = json.load(f)
+        try:
+            st.download_button(
+                "\U0001F4CA Download as Excel (.xlsx)",
+                data=_feasibility_as_excel(feasibility_report),
+                file_name="feasibility_report.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                key=f"{key_prefix}_xlsx",
+            )
+        except ImportError:
+            st.warning(
+                "Install `openpyxl` in the UI environment to enable Excel export: "
+                "`.venv-ui\\Scripts\\python.exe -m pip install openpyxl`"
+            )
+        st.json(feasibility_report)
+    else:
+        st.write(not_found_message)
+
+
 def render_phase1_tab():
     st.subheader("Phase 1: On-Prem (SSAS + SQL Server, no Fabric connectivity needed)")
+    out = st.session_state["output_dir"]
+    full_out = out if os.path.isabs(out) else os.path.join(REPO_ROOT, out)
+    feasibility_path = os.path.join(full_out, "feasibility_report.json")
+    report_path = os.path.join(full_out, "MIGRATION_REPORT.md")
+
     for step in PHASE1_STEPS:
         st.markdown(f"**{STEP_LABELS[step]}**")
         st.caption(STEP_DESCRIPTIONS[step])
@@ -445,6 +498,19 @@ def render_phase1_tab():
         log_area = st.empty()
         if run_clicked:
             run_steps([step], log_area)
+        if step == "analyze":
+            with st.expander("View / download feasibility_report.json"):
+                _render_feasibility_report_view(
+                    feasibility_path, key_prefix="p1_feasibility",
+                    not_found_message="Not generated yet - run this step first.",
+                )
+        if step == "report":
+            with st.expander("View / download MIGRATION_REPORT.md"):
+                _render_markdown_report_view(
+                    report_path, "Migration Conversion Report", "MIGRATION_REPORT.docx",
+                    key_prefix="p1_migration_report",
+                    not_found_message="Not generated yet - run this step first.",
+                )
         st.divider()
 
 
@@ -574,67 +640,24 @@ def render_reports_tab():
     feasibility_path = os.path.join(full_out, "feasibility_report.json")
     manual_path = os.path.join(full_out, "MANUAL_TRANSLATION_REQUIRED.md")
 
-    if os.path.exists(report_path):
-        with open(report_path, "r", encoding="utf-8") as f:
-            report_text = f.read()
-        try:
-            st.download_button(
-                "\U0001F4C4 Download as Word (.docx)",
-                data=_report_as_docx(report_text, "Migration Conversion Report"),
-                file_name="MIGRATION_REPORT.docx",
-                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                key="dl_migration_report_docx",
-            )
-        except ImportError:
-            st.warning(
-                "Install `python-docx` in the UI environment to enable Word export: "
-                "`.venv-ui\\Scripts\\python.exe -m pip install python-docx`"
-            )
-        st.markdown(report_text)
-    else:
-        st.info(f"No report found yet at {report_path}. Run Phase 1 first.")
+    _render_markdown_report_view(
+        report_path, "Migration Conversion Report", "MIGRATION_REPORT.docx",
+        key_prefix="reports_migration_report",
+        not_found_message=f"No report found yet at {report_path}. Run Phase 1 first.",
+    )
 
     with st.expander("feasibility_report.json"):
-        if os.path.exists(feasibility_path):
-            with open(feasibility_path, "r", encoding="utf-8") as f:
-                feasibility_report = json.load(f)
-            try:
-                st.download_button(
-                    "\U0001F4CA Download as Excel (.xlsx)",
-                    data=_feasibility_as_excel(feasibility_report),
-                    file_name="feasibility_report.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    key="dl_feasibility_xlsx",
-                )
-            except ImportError:
-                st.warning(
-                    "Install `openpyxl` in the UI environment to enable Excel export: "
-                    "`.venv-ui\\Scripts\\python.exe -m pip install openpyxl`"
-                )
-            st.json(feasibility_report)
-        else:
-            st.write("Not generated yet.")
+        _render_feasibility_report_view(
+            feasibility_path, key_prefix="reports_feasibility",
+            not_found_message="Not generated yet.",
+        )
 
     with st.expander("MANUAL_TRANSLATION_REQUIRED.md"):
-        if os.path.exists(manual_path):
-            with open(manual_path, "r", encoding="utf-8") as f:
-                manual_text = f.read()
-            try:
-                st.download_button(
-                    "\U0001F4C4 Download as Word (.docx)",
-                    data=_report_as_docx(manual_text, "Manual Translation Required"),
-                    file_name="MANUAL_TRANSLATION_REQUIRED.docx",
-                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                    key="dl_manual_docx",
-                )
-            except ImportError:
-                st.warning(
-                    "Install `python-docx` in the UI environment to enable Word export: "
-                    "`.venv-ui\\Scripts\\python.exe -m pip install python-docx`"
-                )
-            st.markdown(manual_text)
-        else:
-            st.write("Not generated yet (only produced if the cube has calculated members/KPIs).")
+        _render_markdown_report_view(
+            manual_path, "Manual Translation Required", "MANUAL_TRANSLATION_REQUIRED.docx",
+            key_prefix="reports_manual",
+            not_found_message="Not generated yet (only produced if the cube has calculated members/KPIs).",
+        )
 
 
 def main():
