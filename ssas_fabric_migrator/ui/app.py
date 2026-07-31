@@ -175,6 +175,21 @@ def init_state():
     st.session_state.setdefault("python_exe", _default_python_exe())
     st.session_state.setdefault("env_values", {k: d for k, _, _, d in ENV_FIELDS})
 
+    # Auto-load real values from an existing env file on the very first run of
+    # each session, so features that read st.session_state["env_values"]
+    # directly (list_lakehouses, run_local_export) work immediately without
+    # requiring a manual "Load from file" click first - unlike the
+    # orchestrator-backed pipeline steps, which already re-read the env file
+    # fresh from disk on every run regardless of UI state.
+    if not st.session_state.get("_env_autoloaded"):
+        st.session_state["_env_autoloaded"] = True
+        full_path = os.path.join(REPO_ROOT, st.session_state["env_file"])
+        if os.path.exists(full_path):
+            try:
+                load_env_file(st.session_state["env_file"])
+            except Exception:
+                pass  # leave placeholder defaults; "Load from file" remains available manually
+
 
 def load_env_file(path: str):
     from ssas_fabric_migrator.cli.orchestrator import load_env
