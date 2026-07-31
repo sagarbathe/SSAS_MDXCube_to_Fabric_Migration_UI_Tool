@@ -129,6 +129,22 @@ ALT_DATA_OPTIONS = [
 PHASE1_STEPS = ["extract", "analyze", "generate", "report"]
 
 
+def _report_as_docx(markdown_text: str, title: str) -> bytes:
+    """Wraps report_export.markdown_to_docx_bytes with a friendly error if
+    python-docx isn't installed in this UI environment yet."""
+    from ssas_fabric_migrator.ui.report_export import markdown_to_docx_bytes
+
+    return markdown_to_docx_bytes(markdown_text, title)
+
+
+def _feasibility_as_excel(feasibility_report: dict) -> bytes:
+    """Wraps report_export.feasibility_json_to_excel_bytes with a friendly
+    error if openpyxl isn't installed in this UI environment yet."""
+    from ssas_fabric_migrator.ui.report_export import feasibility_json_to_excel_bytes
+
+    return feasibility_json_to_excel_bytes(feasibility_report)
+
+
 def _default_python_exe() -> str:
     """Best-effort default for the pipeline "Python executable" field.
 
@@ -397,20 +413,18 @@ def render_config_tab():
 
 def render_phase1_tab():
     st.subheader("Phase 1: On-Prem (SSAS + SQL Server, no Fabric connectivity needed)")
-    log_area = st.empty()
     for step in PHASE1_STEPS:
         st.markdown(f"**{STEP_LABELS[step]}**")
         st.caption(STEP_DESCRIPTIONS[step])
-        if st.button("Run this step", key=f"p1_{step}", type="primary"):
+        run_clicked = st.button("Run this step", key=f"p1_{step}", type="primary")
+        log_area = st.empty()
+        if run_clicked:
             run_steps([step], log_area)
         st.divider()
-    if st.button("Run all of Phase 1", key="p1_all", type="primary"):
-        run_steps(PHASE1_STEPS, log_area)
 
 
 def render_phase2_tab():
     st.subheader("Phase 2: Fabric-connected (no SSAS connectivity needed)")
-    log_area = st.empty()
 
     # --- Step 5: Lakehouse ---
     st.markdown(f"**{STEP_LABELS['deploy-lake']}**")
@@ -456,7 +470,7 @@ def render_phase2_tab():
         ),
     )
     if st.button("Deploy / find Lakehouse", key="p2_deploy_lake", type="primary"):
-        run_steps(["deploy-lake"], log_area)
+        run_steps(["deploy-lake"], st.empty())
 
     st.divider()
 
@@ -477,7 +491,7 @@ def render_phase2_tab():
     if st.session_state["migration_method"] == "direct":
         st.caption(STEP_DESCRIPTIONS["migrate-data"])
         if st.button("Migrate data now", key="p2_migrate_direct", type="primary"):
-            run_steps(["migrate-data"], log_area)
+            run_steps(["migrate-data"], st.empty())
     else:
         st.markdown("**Step 1 of 2: export SQL Server tables to local Delta files**")
         st.caption(
@@ -488,7 +502,7 @@ def render_phase2_tab():
             "Local export folder", value=st.session_state["local_export_dir"], key="local_export_dir_input"
         )
         if st.button("Export to local Delta files", key="p2_export_local", type="primary"):
-            run_local_export(log_area)
+            run_local_export(st.empty())
 
         st.markdown(
             "*(Manually transfer the export folder above from the on-prem machine to this "
@@ -504,7 +518,7 @@ def render_phase2_tab():
             value=st.session_state["local_delta_dir"], key="local_delta_dir_input",
         )
         if st.button("Upload to Lakehouse", key="p2_upload", type="primary"):
-            run_steps(["upload-data"], log_area)
+            run_steps(["upload-data"], st.empty())
 
     with st.expander("Other ways to migrate data into Fabric (not implemented by this tool)"):
         st.caption(
@@ -522,7 +536,7 @@ def render_phase2_tab():
     st.markdown(f"**{STEP_LABELS['deploy-model']}**")
     st.caption(STEP_DESCRIPTIONS["deploy-model"])
     if st.button("Deploy semantic model", key="p2_deploy_model", type="primary"):
-        run_steps(["deploy-model"], log_area)
+        run_steps(["deploy-model"], st.empty())
 
 
 def render_reports_tab():
@@ -536,21 +550,63 @@ def render_reports_tab():
 
     if os.path.exists(report_path):
         with open(report_path, "r", encoding="utf-8") as f:
-            st.markdown(f.read())
+            report_text = f.read()
+        try:
+            st.download_button(
+                "\U0001F4C4 Download as Word (.docx)",
+                data=_report_as_docx(report_text, "Migration Conversion Report"),
+                file_name="MIGRATION_REPORT.docx",
+                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                key="dl_migration_report_docx",
+            )
+        except ImportError:
+            st.warning(
+                "Install `python-docx` in the UI environment to enable Word export: "
+                "`.venv-ui\\Scripts\\python.exe -m pip install python-docx`"
+            )
+        st.markdown(report_text)
     else:
         st.info(f"No report found yet at {report_path}. Run Phase 1 first.")
 
     with st.expander("feasibility_report.json"):
         if os.path.exists(feasibility_path):
             with open(feasibility_path, "r", encoding="utf-8") as f:
-                st.json(json.load(f))
+                feasibility_report = json.load(f)
+            try:
+                st.download_button(
+                    "\U0001F4CA Download as Excel (.xlsx)",
+                    data=_feasibility_as_excel(feasibility_report),
+                    file_name="feasibility_report.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    key="dl_feasibility_xlsx",
+                )
+            except ImportError:
+                st.warning(
+                    "Install `openpyxl` in the UI environment to enable Excel export: "
+                    "`.venv-ui\\Scripts\\python.exe -m pip install openpyxl`"
+                )
+            st.json(feasibility_report)
         else:
             st.write("Not generated yet.")
 
     with st.expander("MANUAL_TRANSLATION_REQUIRED.md"):
         if os.path.exists(manual_path):
             with open(manual_path, "r", encoding="utf-8") as f:
-                st.markdown(f.read())
+                manual_text = f.read()
+            try:
+                st.download_button(
+                    "\U0001F4C4 Download as Word (.docx)",
+                    data=_report_as_docx(manual_text, "Manual Translation Required"),
+                    file_name="MANUAL_TRANSLATION_REQUIRED.docx",
+                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    key="dl_manual_docx",
+                )
+            except ImportError:
+                st.warning(
+                    "Install `python-docx` in the UI environment to enable Word export: "
+                    "`.venv-ui\\Scripts\\python.exe -m pip install python-docx`"
+                )
+            st.markdown(manual_text)
         else:
             st.write("Not generated yet (only produced if the cube has calculated members/KPIs).")
 
