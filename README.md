@@ -85,10 +85,12 @@ links to the section with full details/troubleshooting.
 
 3. **Create an isolated environment for the pipeline dependencies** and
    install `requirements.txt` into it (keeps these packages out of your
-   global/system Python and avoids clashing with other projects):
+   global/system Python and avoids clashing with other projects). Run this
+   from the repo root (`<repo_path>` = the folder from the "Getting
+   Started" step above, e.g. `C:\Users\<you>\SSAS_MDXCube_to_Fabric_Migration_UI_Tool`):
    ```powershell
    <path-to-x64-python>\python.exe -m venv .venv
-   .venv\Scripts\python.exe -m pip install -r requirements.txt
+   .venv\Scripts\python.exe -m pip install -r <repo_path>\requirements.txt
    ```
    - You do **not** need to "activate" this venv (`.venv\Scripts\activate`)
      - every command in this README calls `.venv\Scripts\python.exe`
