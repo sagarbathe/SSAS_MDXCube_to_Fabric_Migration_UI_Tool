@@ -145,11 +145,20 @@ def run_pipeline(env, steps, args):
         print(f"    Lakehouse id: {lakehouse['id']}")
         print(f"    SQL endpoint: {endpoint}")
         expr_path = os.path.join(tmdl_dir, "definition", "expressions.tmdl")
-        if endpoint and os.path.exists(expr_path):
+        if os.path.exists(expr_path):
             with open(expr_path, "r", encoding="utf-8") as f:
                 content = f.read()
-            content = content.replace("TODO_SET_LAKEHOUSE_SQL_ENDPOINT", endpoint)
-            content = content.replace("TODO_SET_LAKEHOUSE_NAME", args.lakehouse_name)
+            # OneLakeSource (used by directLake partitions - Direct Lake ON
+            # ONELAKE, not "Direct Lake on SQL") needs the workspace + this
+            # Lakehouse's GUID.
+            content = content.replace("TODO_SET_WORKSPACE_ID", env["FABRIC_WORKSPACE_ID"])
+            content = content.replace("TODO_SET_LAKEHOUSE_ID", lakehouse["id"])
+            # DatabaseQuery (SQL analytics endpoint) is only used as a
+            # fallback for Import-mode partitions - still patched in case
+            # feasibility recommended Import for this cube.
+            if endpoint:
+                content = content.replace("TODO_SET_LAKEHOUSE_SQL_ENDPOINT", endpoint)
+                content = content.replace("TODO_SET_LAKEHOUSE_NAME", args.lakehouse_name)
             with open(expr_path, "w", encoding="utf-8") as f:
                 f.write(content)
 

@@ -148,12 +148,23 @@ def _gen_table_tmdl(table_name, columns, hierarchies=None, measures_tmdl="", mod
         lines.append("\t\t\t\t\tdbo_Table")
         lines.append("")
     else:
+        # Direct Lake ON ONELAKE (not "Direct Lake on SQL"): the
+        # expressionSource below (OneLakeSource) resolves via
+        # AzureStorage.DataLake straight to the Lakehouse's OneLake Delta
+        # folders, not the SQL analytics endpoint. Fabric treats a model
+        # whose Direct Lake partitions resolve through Sql.Database as
+        # "Direct Lake on SQL" (a distinct, newer engine mode) which fails
+        # to deploy with "You cannot use Direct Lake on SQL mode together
+        # with other storage modes in the same model" as soon as anything
+        # else touches the model - using the classic OneLake-path
+        # expression avoids that restriction entirely. No schemaName here:
+        # that's a SQL-schema concept and doesn't apply to OneLake Delta
+        # folder entities on a (default, non schema-enabled) Lakehouse.
         lines.append("\tpartition " + _quote_name(table_name) + " = entity")
         lines.append("\t\tmode: directLake")
         lines.append("\t\tsource")
         lines.append("\t\t\tentityName: " + physical_table_name)
-        lines.append("\t\t\tschemaName: dbo")
-        lines.append("\t\t\texpressionSource: DatabaseQuery")
+        lines.append("\t\t\texpressionSource: OneLakeSource")
         lines.append("")
     return "\n".join(lines)
 
@@ -283,9 +294,21 @@ def generate_tmdl(ir, feasibility_report, output_dir, lakehouse_sql_endpoint=Non
         placeholder_path = os.path.join(os.path.dirname(os.path.normpath(output_dir)), "MANUAL_TRANSLATION_REQUIRED.md")
         _write(placeholder_path, "\n".join(placeholder_lines))
 
-    # --- Shared expression (Lakehouse connection) ---
+    # --- Shared expressions (Lakehouse connections) ---
+    # OneLakeSource: used by directLake partitions (Direct Lake ON ONELAKE -
+    # see _gen_table_tmdl). Points straight at the Lakehouse's OneLake Delta
+    # folder via its workspace/lakehouse GUIDs, patched in by the
+    # "deploy-lake" orchestrator step once the Lakehouse is created.
     endpoint = lakehouse_sql_endpoint or "TODO_SET_LAKEHOUSE_SQL_ENDPOINT"
     expr_tmdl = (
+        "expression OneLakeSource =\n"
+        "\t\tlet\n"
+        "\t\t\tSource = AzureStorage.DataLake(\"https://onelake.dfs.fabric.microsoft.com/TODO_SET_WORKSPACE_ID/TODO_SET_LAKEHOUSE_ID\", [HierarchicalNavigation=true])\n"
+        "\t\tin\n"
+        "\t\t\tSource\n"
+        "\tlineageTag: onelake-source-expression\n"
+        "\tannotation PBI_ResultType = Table\n"
+        "\n"
         "expression DatabaseQuery =\n"
         "\t\tlet\n"
         "\t\t\tSource = Sql.Database(\"" + endpoint + "\", \"TODO_SET_LAKEHOUSE_NAME\")\n"
