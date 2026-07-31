@@ -113,12 +113,12 @@ links to the section with full details/troubleshooting.
    for why this must be a *separate* environment from step 3:
    ```powershell
    <path-to-x64-python>\python.exe -m venv .venv-ui
-   .venv-ui\Scripts\python.exe -m pip install -r requirements-ui.txt
+   .venv-ui\Scripts\python.exe -m pip install -r <repo_path>\requirements-ui.txt
    ```
    Same troubleshooting as step 3 applies if this install fails.
 5. **Launch the Web UI**:
    ```powershell
-   .venv-ui\Scripts\python.exe -m streamlit run ssas_fabric_migrator\ui\app.py
+   .venv-ui\Scripts\python.exe -m streamlit run <repo_path>\ssas_fabric_migrator\ui\app.py
    ```
    This opens `http://localhost:8501` in your browser (or prints the URL
    to open manually).
@@ -131,22 +131,22 @@ links to the section with full details/troubleshooting.
      any app binds to a network port - allow it on **Private networks**
      at minimum so you (and others on the same network, per
      [Section 11](#11-web-ui)) can reach it.
-6. **On the Configuration tab**, set "Python executable" to the
-   **step-3 `.venv\Scripts\python.exe` path** (not `.venv-ui`'s
-   interpreter - see [Section 11](#11-web-ui) for why), fill in your
-   SSAS/SQL/Fabric connection details, and click **Save to env file** to
-   write `config/.env`.
+6. **On the Configuration tab**, set "Python executable" to
+   **`<repo_path>\.venv\Scripts\python.exe`** (step 3's environment, not
+   `.venv-ui`'s interpreter - see [Section 11](#11-web-ui) for why), fill
+   in your SSAS/SQL/Fabric connection details, and click **Save to env
+   file** (defaults to `<repo_path>\config\.env`) to write it.
    - If clicking a step button shows `[Errno 2] No such file or
      directory: '...\ssas_fabric_migrator\ui\app.py'` pointing at a path
-     that **isn't** this repo, you launched Streamlit from a different
+     that **isn't** `<repo_path>`, you launched Streamlit from a different
      repo folder (e.g. the pro-code-only repo, which has no `ui/`
      directory) - stop the app, `cd` into **this** repo's root, and
      re-run step 5 from there.
    - If a pipeline step fails immediately with a Python traceback instead
      of running, double-check the "Python executable" field points at
-     `.venv\Scripts\python.exe` (step 3's environment, which has
-     `pyarrow`/`pythonnet`/etc. installed), not `.venv-ui`'s interpreter or
-     a bare `python`.
+     `<repo_path>\.venv\Scripts\python.exe` (step 3's environment, which
+     has `pyarrow`/`pythonnet`/etc. installed), not `.venv-ui`'s
+     interpreter or a bare `python`.
 7. **Run Phase 1: On-Prem** tab, in order - Extract, Feasibility, Generate
    model, Migration report ([Section 5](#5-phase-1-on-prem-ssas--sql-server)).
    Review `feasibility_report.json` and `MIGRATION_REPORT.md` in the
