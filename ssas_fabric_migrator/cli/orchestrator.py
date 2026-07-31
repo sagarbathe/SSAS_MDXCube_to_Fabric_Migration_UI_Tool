@@ -192,6 +192,15 @@ def run_pipeline(env, steps, args):
     if "deploy-model" in steps:
         print(f"[7/7] Deploying semantic model '{args.semantic_model_name}' ...")
         client.create_semantic_model(env["FABRIC_WORKSPACE_ID"], args.semantic_model_name, tmdl_dir)
+        # Fetch the item fresh by name rather than trusting
+        # create_semantic_model's return value - the updateDefinition path
+        # (existing model) can return a 200 with an empty body, so re-look
+        # it up to reliably get its id for the refresh call below.
+        model_item = client.find_item(env["FABRIC_WORKSPACE_ID"], args.semantic_model_name, "SemanticModel")
+        print("    Refreshing semantic model (a refresh is required after every deploy so reports see the "
+              "new/updated tables - otherwise you'd have to click 'Refresh now' by hand in the Fabric portal) ...")
+        client.refresh_semantic_model(env["FABRIC_WORKSPACE_ID"], model_item["id"])
+        print("    Refresh complete - the semantic model is ready to build reports against.")
 
     print("Done.")
 

@@ -876,18 +876,34 @@ python -m ssas_fabric_migrator.cli.orchestrator --steps "deploy-model" `
 - Command completes without raising `Fabric operation failed: ...`.
 - The Semantic Model item appears in the target workspace in the Fabric
   portal.
+- The step now automatically triggers a refresh and waits for it to finish
+  (prints "Refresh complete - the semantic model is ready to build reports
+  against."). This is what used to require a manual **Refresh now** click
+  in the Fabric portal before a report could be built against the model -
+  it's no longer a manual step for either Direct Lake or Import models.
 - Open the model and run a quick DAX query / build a visual referencing a
   fact measure and a dimension attribute; confirm the totals match a
   known-good query against the original cube (e.g., an MDX query against
   the SSAS cube for the same measure).
 - If the model was recommended for **Direct Lake**, confirm in the model's
-  settings that storage mode is indeed Direct Lake (not Import) and that it
-  reflects new data immediately after a change to the Lakehouse tables (no
-  manual refresh needed). If it was recommended for **Import**, a
-  scheduled/manual refresh is required to pick up new data - configure this
-  separately in the Fabric portal.
+  settings that storage mode is indeed Direct Lake (not Import) - after the
+  initial refresh above it also reflects new data immediately after a
+  change to the Lakehouse tables (no further manual refresh needed unless
+  the underlying tables change again). If it was recommended for
+  **Import**, a scheduled/manual refresh is still required to pick up new
+  data after this initial one - configure this separately in the Fabric
+  portal.
+- **The refresh call requires the Power BI REST API scope** (`https://
+  analysis.windows.net/powerbi/api/.default`), in addition to the Fabric
+  API scope already used elsewhere - the same service principal works for
+  both as long as it's a **Contributor** (or higher) on the workspace (see
+  prerequisite #5); no extra app registration permissions are needed.
 - **Import-mode models need a one-time manual credential binding before
-  the first refresh will succeed.** The generated M partition always
+  the first refresh will succeed** - if this hasn't been done yet, the
+  automatic refresh triggered by this step will fail with the
+  `Premium_ASWL_Error` below; bind credentials once as described, then
+  re-run just this step (`--steps "deploy-model"`) to retry the refresh
+  without redeploying the model. The generated M partition always
   points at the Fabric Lakehouse's own SQL analytics endpoint (see
   `expressions.tmdl`'s `DatabaseQuery`, e.g.
   `Sql.Database("<workspace>-<lakehouse>.datawarehouse.fabric.microsoft.com", "<LakehouseName>")`)
@@ -909,7 +925,7 @@ python -m ssas_fabric_migrator.cli.orchestrator --steps "deploy-model" `
      **Workspace settings &rarr; Manage connections and gateways &rarr;
      New &rarr; Cloud** (same server/database, OAuth2), then map the
      semantic model to it.
-  6. Click **Refresh now** to confirm.
+  6. Click **Refresh now** to confirm (or re-run the `deploy-model` step).
   This step is not currently automatable via the public Fabric REST API
   and must be done once per Import-mode model in the portal.
 

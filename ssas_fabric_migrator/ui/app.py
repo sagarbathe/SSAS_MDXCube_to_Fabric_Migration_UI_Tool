@@ -114,7 +114,10 @@ STEP_DESCRIPTIONS = {
         "Creates (or updates) the Semantic Model item in the target Fabric workspace "
         "from the generated TMDL folder. If a previously-deployed model's storage "
         "mode needs to flip (Direct Lake <-> Import), Fabric doesn't support that "
-        "in-place - this step automatically deletes and recreates the item instead."
+        "in-place - this step automatically deletes and recreates the item instead. "
+        "Afterwards it also triggers a refresh and waits for it to finish, so the "
+        "model is immediately ready for reports - without this, Fabric shows stale "
+        "or missing data until someone manually clicks 'Refresh now' in the portal."
     ),
 }
 

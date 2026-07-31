@@ -19,6 +19,10 @@ from azure.identity import ClientSecretCredential
 
 FABRIC_API_BASE = "https://api.fabric.microsoft.com/v1"
 FABRIC_SCOPE = "https://api.fabric.microsoft.com/.default"
+# Refreshing a semantic model still goes through the Power BI REST API
+# (there's no Fabric-native equivalent) - separate base URL + AAD scope.
+POWERBI_API_BASE = "https://api.powerbi.com/v1.0/myorg"
+POWERBI_SCOPE = "https://analysis.windows.net/powerbi/api/.default"
 
 
 class FabricClient:
@@ -132,6 +136,51 @@ class FabricClient:
             r = self._post(f"/workspaces/{workspace_id}/semanticModels", body)
             return self._await_lro_or_body(r, workspace_id, name, "SemanticModel")
 
+    def _powerbi_headers(self):
+        # Refreshing a dataset/semantic model is exposed via the Power BI
+        # REST API, not the Fabric REST API - it needs a separate AAD token
+        # scope for the Power BI service resource.
+        token = self.credential.get_token(POWERBI_SCOPE).token
+        return {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+
+    def refresh_semantic_model(self, workspace_id, dataset_id, poll_interval_seconds=5, timeout_seconds=600):
+        """
+        Triggers a refresh of the deployed semantic model and waits for it to
+        complete. Required after every deploy: Fabric does not automatically
+        reframe a Direct Lake model (or pick up an updated definition) after
+        create/updateDefinition, so reports built against a freshly deployed
+        model see stale/empty data or "table not found" errors until a
+        refresh runs - previously this had to be done by hand from the
+        Fabric portal (Semantic model > Refresh now).
+        """
+        r = requests.post(
+            f"{POWERBI_API_BASE}/groups/{workspace_id}/datasets/{dataset_id}/refreshes",
+            headers=self._powerbi_headers(),
+            json={"notifyOption": "NoNotification"},
+        )
+        if r.status_code not in (200, 202):
+            raise RuntimeError(f"Triggering semantic model refresh failed: {r.status_code} {r.text}")
+
+        waited = 0
+        while waited < timeout_seconds:
+            time.sleep(poll_interval_seconds)
+            waited += poll_interval_seconds
+            history = requests.get(
+                f"{POWERBI_API_BASE}/groups/{workspace_id}/datasets/{dataset_id}/refreshes?$top=1",
+                headers=self._powerbi_headers(),
+            )
+            history.raise_for_status()
+            entries = history.json().get("value", [])
+            if not entries:
+                continue
+            latest = entries[0]
+            status = latest.get("status")
+            if status == "Completed":
+                return latest
+            if status in ("Failed", "Disabled", "Cancelled"):
+                raise RuntimeError(f"Semantic model refresh failed: {latest}")
+            # status "Unknown"/"InProgress" -> keep polling
+        raise RuntimeError(f"Timed out after {timeout_seconds}s waiting for semantic model refresh to complete")
 
 
 if __name__ == "__main__":
