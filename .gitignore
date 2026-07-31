@@ -1,0 +1,19 @@
+# Byte-compiled / cache
+__pycache__/
+*.pyc
+
+# Secrets - never commit real credentials
+config/.env
+
+# Generated pipeline output (cube metadata dumps, TMDL, notebooks, Delta
+# staging files) - these are run-specific artifacts, not source
+output/
+
+# OS/editor noise
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Isolated virtual environment for the optional Streamlit UI (Section 11) -
+# create your own locally, never commit it
+.venv-ui/
