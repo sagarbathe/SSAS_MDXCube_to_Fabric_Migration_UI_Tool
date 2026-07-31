@@ -129,6 +129,22 @@ ALT_DATA_OPTIONS = [
 PHASE1_STEPS = ["extract", "analyze", "generate", "report"]
 
 
+def _default_python_exe() -> str:
+    """Best-effort default for the pipeline "Python executable" field.
+
+    Prefers a sibling `.venv\\Scripts\\python.exe` (the pipeline-dependency
+    environment set up per the README's Quickstart) over `sys.executable`,
+    since the latter is *this UI's own* interpreter (typically `.venv-ui`)
+    and almost never has pyodbc/pyarrow/pythonnet/deltalake installed -
+    using it by mistake is a common source of `ModuleNotFoundError` on the
+    very first pipeline step.
+    """
+    candidate = os.path.join(REPO_ROOT, ".venv", "Scripts", "python.exe")
+    if os.path.isfile(candidate):
+        return candidate
+    return sys.executable
+
+
 def init_state():
     st.session_state.setdefault("env_file", os.path.join("config", ".env"))
     st.session_state.setdefault("output_dir", "output")
@@ -140,7 +156,7 @@ def init_state():
     st.session_state.setdefault("local_export_dir", "output\\delta")
     st.session_state.setdefault("local_delta_dir", "output\\delta")
     st.session_state.setdefault("migration_method", "direct")
-    st.session_state.setdefault("python_exe", sys.executable)
+    st.session_state.setdefault("python_exe", _default_python_exe())
     st.session_state.setdefault("env_values", {k: d for k, _, _, d in ENV_FIELDS})
 
 
