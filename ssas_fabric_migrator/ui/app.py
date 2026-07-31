@@ -53,6 +53,7 @@ ENV_FIELDS = [
     ("FABRIC_CLIENT_ID", "Fabric app registration (service principal) client ID", False, ""),
     ("FABRIC_CLIENT_SECRET", "Fabric app registration client secret", True, ""),
     ("FABRIC_WORKSPACE_ID", "Target Fabric workspace ID", False, ""),
+    ("SEMANTIC_MODEL_NAME", "Fabric Semantic Model name", False, "RetailCubeDemo"),
 ]
 
 STEP_LABELS = {
@@ -168,7 +169,6 @@ def init_state():
     st.session_state.setdefault("lakehouse_name", "RetailLakehouse")
     st.session_state.setdefault("available_lakehouses", [])
     st.session_state.setdefault("table_prefix", "")
-    st.session_state.setdefault("semantic_model_name", "RetailCubeDemo")
     st.session_state.setdefault("local_export_dir", "output\\delta")
     st.session_state.setdefault("local_delta_dir", "output\\delta")
     st.session_state.setdefault("migration_method", "direct")
@@ -231,7 +231,7 @@ def run_steps(steps: list[str], log_area):
         "--env-file", st.session_state["env_file"],
         "--output-dir", st.session_state["output_dir"],
         "--lakehouse-name", st.session_state["lakehouse_name"],
-        "--semantic-model-name", st.session_state["semantic_model_name"],
+        "--semantic-model-name", st.session_state["env_values"].get("SEMANTIC_MODEL_NAME", "RetailCubeDemo"),
         "--table-prefix", st.session_state["table_prefix"],
     ]
     if "upload-data" in steps:
@@ -410,18 +410,27 @@ def render_config_tab():
 
     st.divider()
     st.subheader("Run settings")
-    st.session_state["output_dir"] = st.text_input("Output directory", value=st.session_state["output_dir"])
-    st.session_state["semantic_model_name"] = st.text_input(
-        "Fabric Semantic Model name", value=st.session_state["semantic_model_name"]
+    st.caption(
+        "These are fixed for this deployment (not saved to the env file) - shown here for "
+        "reference only."
     )
-    st.session_state["python_exe"] = st.text_input(
-        "Python executable to run pipeline steps with",
-        value=st.session_state["python_exe"],
+    st.text_input(
+        "Output directory (relative to repo root)",
+        value=st.session_state["output_dir"],
+        disabled=True,
         help=(
-            "Use the x64 interpreter with pythonnet/pandas/pyarrow/deltalake installed "
-            "(requirements.txt) - NOT the interpreter/venv Streamlit itself is running in. "
-            "On Windows ARM64, the default 'python' on PATH usually resolves to an ARM64 "
-            "interpreter lacking these - point this at your x64 python.exe instead."
+            "All pipeline artifacts (cube_metadata.json, feasibility_report.json, "
+            "SemanticModel\\, MIGRATION_REPORT.md, notebooks\\) are written here."
+        ),
+    )
+    st.text_input(
+        "Python executable used to run pipeline steps (auto-detected)",
+        value=st.session_state["python_exe"],
+        disabled=True,
+        help=(
+            "Auto-detected as <repo_root>\\.venv\\Scripts\\python.exe - the x64 interpreter "
+            "with pythonnet/pandas/pyarrow/deltalake installed per the README Quickstart. "
+            "Every pipeline step subprocess runs with this interpreter."
         ),
     )
 

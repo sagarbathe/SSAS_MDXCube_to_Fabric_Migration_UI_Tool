@@ -196,11 +196,12 @@ the section with full details/troubleshooting.
      any app binds to a network port - allow it on **Private networks**
      at minimum so you (and others on the same network, per
      [Section 11](#11-web-ui)) can reach it.
-6. **On the Configuration tab**, set "Python executable" to
-   **`<repo_path>\.venv\Scripts\python.exe`** (step 3's environment, not
-   `.venv-ui`'s interpreter - see [Section 11](#11-web-ui) for why), fill
-   in your SSAS/SQL/Fabric connection details, and click **Save to env
-   file** (defaults to `<repo_path>\config\.env`) to write it.
+6. **On the Configuration tab**, fill in your SSAS/SQL/Fabric connection
+   details and the **Fabric Semantic Model name**, then click **Save to
+   env file** (defaults to `<repo_path>\config\.env`) to write it. The
+   "Python executable" and "Output directory" fields shown under **Run
+   settings** are auto-detected/fixed (read-only) - see
+   [Section 11](#11-web-ui) for why.
    - If clicking a step button shows `[Errno 2] No such file or
      directory: '...\ssas_fabric_migrator\ui\app.py'` pointing at a path
      that **isn't** `<repo_path>`, you launched Streamlit from a different
@@ -208,10 +209,13 @@ the section with full details/troubleshooting.
      directory) - stop the app, `cd` into **this** repo's root, and
      re-run step 5 from there.
    - If a pipeline step fails immediately with a Python traceback instead
-     of running, double-check the "Python executable" field points at
-     `<repo_path>\.venv\Scripts\python.exe` (step 3's environment, which
-     has `pyarrow`/`pythonnet`/etc. installed), not `.venv-ui`'s
-     interpreter or a bare `python`.
+     of running, check the read-only "Python executable" value under Run
+     settings - it should point at `<repo_path>\.venv\Scripts\python.exe`
+     (step 3's environment, which has `pyarrow`/`pythonnet`/etc.
+     installed). If `.venv` doesn't exist yet (or exists somewhere
+     non-standard), it silently falls back to the UI's own `.venv-ui`
+     interpreter, which lacks these packages - go back and complete step
+     3, then restart the app.
 7. **Run Phase 1: On-Prem** tab, in order - Extract, Feasibility, Generate
    model, Migration report ([Section 5](#5-phase-1-on-prem-ssas--sql-server)).
    Review `feasibility_report.json` and `MIGRATION_REPORT.md` in the
@@ -1140,9 +1144,9 @@ pipeline logic, and every CLI command remains available for scripting/
 automation, but the Web UI is a core part of this tool, not an optional
 add-on. `app.py`
 itself has **no dependency on pandas/pyarrow/pythonnet/deltalake** - it
-only shells out via subprocess to whichever Python interpreter you
-configure in its "Python executable" field, exactly like calling the CLI
-by hand.
+only shells out via subprocess to a separate Python interpreter it
+auto-detects (a sibling `.venv\Scripts\python.exe`, shown read-only under
+Run settings), exactly like calling the CLI by hand.
 
 **Install the UI in its own isolated virtual environment - do NOT install
 `requirements-ui.txt` into the same environment as `requirements.txt`.**
@@ -1201,12 +1205,26 @@ values as `config/.env.template`), **Phase 1: On-Prem**, **Phase 2:
 Fabric**, and **Reports** (renders `MIGRATION_REPORT.md`,
 `feasibility_report.json`, `MANUAL_TRANSLATION_REQUIRED.md` in-browser).
 Each step button runs the exact same orchestrator subprocess as the CLI
-and streams its console output live. Every step also shows a short
-caption explaining what it does and why, so users don't need to consult
-this README while clicking through. **On the Configuration tab, set
-"Python executable" to the x64 `python.exe` that has `requirements.txt`
-installed** (not `.venv-ui`'s interpreter) - that is what actually runs
-each pipeline step (AMO extraction, Delta writes, Fabric REST calls).
+and streams its console output live (directly below that step's own
+button). Every step also shows a short caption explaining what it does
+and why, so users don't need to consult this README while clicking
+through. **The "Python executable" that actually runs each pipeline step
+(AMO extraction, Delta writes, Fabric REST calls) is auto-detected** as
+`<repo_path>\.venv\Scripts\python.exe` and shown read-only under Run
+settings on the Configuration tab - not `.venv-ui`'s interpreter. If
+`.venv` doesn't exist yet, it falls back to `.venv-ui`'s own interpreter
+(which lacks `requirements.txt`'s packages) - complete Quickstart step 3
+and restart the app if you see `ModuleNotFoundError` on the first step.
+
+### Reviewing generated reports in Word/Excel
+
+The Reports tab renders `MIGRATION_REPORT.md`, `feasibility_report.json`,
+and `MANUAL_TRANSLATION_REQUIRED.md` in-browser, and also offers
+**"Download as Word (.docx)"** / **"Download as Excel (.xlsx)"** buttons
+for users who'd rather review/share findings in Office instead of raw
+Markdown/JSON - the Word export preserves headings/tables/bullets (with
+severity-highlighted rows), and the Excel export is a two-sheet workbook
+(a per-cube Summary sheet plus a color-coded Findings sheet).
 
 ### Lakehouse selection and table-name prefixing
 
