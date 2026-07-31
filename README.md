@@ -36,6 +36,61 @@ the repo onto each machine that will run any step.
 
 ---
 
+## Quickstart: Test the Tool End-to-End
+
+Use this checklist the first time you set up a machine, from a bare clone
+to a fully working migration run through the Web UI. Every command below
+assumes you're in the repo root folder from the step above. Each item
+links to the section with full details/troubleshooting.
+
+1. **Check prerequisites** ([Section 3](#3-prerequisites)) - confirm you
+   have the right Windows account/roles for SSAS (AMO), SQL Server access,
+   and a Fabric workspace + service principal ready (Phase 2 only needs the
+   service principal, not SSAS access).
+2. **Find your x64 Python interpreter** ([Section 4](#4-install-dependencies)) -
+   run `python -c "import sysconfig; print(sysconfig.get_platform())"` and
+   confirm `win-amd64`, not `win-arm64`. Note its full path.
+3. **Install the pipeline dependencies** (used by the CLI and by every
+   step the UI runs under the hood) into that x64 interpreter directly -
+   no venv needed for this one:
+   ```powershell
+   <path-to-x64-python>\python.exe -m pip install -r requirements.txt
+   ```
+4. **Create an isolated environment for the Web UI itself** and install
+   its (much smaller) dependency set - see [Section 11](#11-web-ui) for
+   why this must be a *separate* environment from step 3:
+   ```powershell
+   <path-to-x64-python>\python.exe -m venv .venv-ui
+   .venv-ui\Scripts\python.exe -m pip install -r requirements-ui.txt
+   ```
+5. **Launch the Web UI**:
+   ```powershell
+   .venv-ui\Scripts\python.exe -m streamlit run ssas_fabric_migrator\ui\app.py
+   ```
+   This opens `http://localhost:8501` in your browser (or prints the URL
+   to open manually).
+6. **On the Configuration tab**, set "Python executable" to the
+   **step-3 x64 `python.exe` path** (not `.venv-ui`'s interpreter - see
+   [Section 11](#11-web-ui) for why), fill in your SSAS/SQL/Fabric
+   connection details, and click **Save to env file** to write
+   `config/.env`.
+7. **Run Phase 1: On-Prem** tab, in order - Extract, Feasibility, Generate
+   model, Migration report ([Section 5](#5-phase-1-on-prem-ssas--sql-server)).
+   Review `feasibility_report.json` and `MIGRATION_REPORT.md` in the
+   **Reports** tab before continuing.
+8. **Run Phase 2: Fabric** tab, in order - create/verify Lakehouse, migrate
+   data, deploy the semantic model ([Section 6](#6-phase-2-fabric-connected)).
+9. **Verify in Fabric** - open the deployed semantic model in the Fabric
+   workspace, confirm the Lakehouse's Delta tables are populated, and open
+   the model in Power BI Desktop/service to spot-check a few measures
+   against the original cube.
+
+If any step fails, check the relevant numbered section above for
+troubleshooting notes, or the [Limitations](#10-limitations) section for
+known gaps.
+
+---
+
 ## 1. Purpose / Objective
 
 Organizations with legacy SSAS Multidimensional (MDX) cubes need a
