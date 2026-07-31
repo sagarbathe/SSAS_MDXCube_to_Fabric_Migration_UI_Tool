@@ -192,6 +192,7 @@ def run_pipeline(env, steps, args):
     if "deploy-model" in steps:
         print(f"[7/7] Deploying semantic model '{args.semantic_model_name}' ...")
         client.create_semantic_model(env["FABRIC_WORKSPACE_ID"], args.semantic_model_name, tmdl_dir)
+        print(f"    Semantic model '{args.semantic_model_name}' deployed successfully.")
         # Fetch the item fresh by name rather than trusting
         # create_semantic_model's return value - the updateDefinition path
         # (existing model) can return a 200 with an empty body, so re-look
@@ -199,8 +200,34 @@ def run_pipeline(env, steps, args):
         model_item = client.find_item(env["FABRIC_WORKSPACE_ID"], args.semantic_model_name, "SemanticModel")
         print("    Refreshing semantic model (a refresh is required after every deploy so reports see the "
               "new/updated tables - otherwise you'd have to click 'Refresh now' by hand in the Fabric portal) ...")
-        client.refresh_semantic_model(env["FABRIC_WORKSPACE_ID"], model_item["id"])
-        print("    Refresh complete - the semantic model is ready to build reports against.")
+        try:
+            client.refresh_semantic_model(env["FABRIC_WORKSPACE_ID"], model_item["id"])
+            print("    Refresh complete - the semantic model is ready to build reports against.")
+        except RuntimeError as e:
+            # The model itself deployed fine above - only the automatic
+            # post-deploy refresh failed. This is expected (not a
+            # deployment failure) the first time an Import-mode model is
+            # deployed via the REST API: Fabric provisions its SQL
+            # analytics-endpoint connection with no stored credentials, so
+            # the very first refresh always fails until a human binds
+            # credentials once in the portal (see README Step 7). Report
+            # this as a clear warning instead of a hard traceback, and
+            # don't undo/delete the already-successfully-deployed model.
+            msg = str(e)
+            if "cannot access the source delta table" in msg.lower() or "default data connection" in msg.lower() or "premium_aswl_error" in msg.lower():
+                print(
+                    "    WARNING: The model deployed successfully, but the automatic refresh failed because "
+                    "its data connection has no stored credentials yet - this is expected the first time an "
+                    "Import-mode model is deployed via the API (Direct Lake models are not affected). "
+                    "Bind credentials once in the Fabric portal (workspace -> the semantic model -> Settings -> "
+                    "Gateway and cloud connections -> edit the Lakehouse SQL endpoint connection -> Organizational "
+                    "account -> Save), then either click 'Refresh now' there or re-run this 'Deploy semantic model' "
+                    "step to retry just the refresh. See README Step 7 for full details."
+                )
+            else:
+                print(f"    WARNING: The model deployed successfully, but the automatic refresh failed: {msg}")
+                print("    You can retry the refresh from the Fabric portal (Semantic model -> Refresh now), "
+                      "or re-run this 'Deploy semantic model' step.")
 
     print("Done.")
 

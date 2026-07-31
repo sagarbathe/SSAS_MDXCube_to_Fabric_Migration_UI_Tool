@@ -900,18 +900,22 @@ python -m ssas_fabric_migrator.cli.orchestrator --steps "deploy-model" `
   prerequisite #5); no extra app registration permissions are needed.
 - **Import-mode models need a one-time manual credential binding before
   the first refresh will succeed** - if this hasn't been done yet, the
-  automatic refresh triggered by this step will fail with the
-  `Premium_ASWL_Error` below; bind credentials once as described, then
-  re-run just this step (`--steps "deploy-model"`) to retry the refresh
-  without redeploying the model. The generated M partition always
+  automatic refresh triggered by this step **prints a WARNING and
+  continues** (it does not raise/crash the step, and does not undo the
+  already-successful deployment) - you'll see either
+  `Premium_ASWL_Error` or a `ModelRefresh_ShortMessage_ProcessingError`
+  ("We cannot access the source Delta table ..."), both caused by the same
+  missing-credentials condition. Bind credentials once as described below,
+  then either click **Refresh now** in the portal or re-run just this step
+  (`--steps "deploy-model"`) to retry the refresh without redeploying the
+  model. The generated M partition always
   points at the Fabric Lakehouse's own SQL analytics endpoint (see
   `expressions.tmdl`'s `DatabaseQuery`, e.g.
   `Sql.Database("<workspace>-<lakehouse>.datawarehouse.fabric.microsoft.com", "<LakehouseName>")`)
   - never the on-prem SQL Server - but because the item is created via the
     REST API, Fabric provisions that connection with no stored credentials.
-    Refreshing before binding credentials fails with:
-    `Premium_ASWL_Error` / "this semantic model uses a default data
-    connection without explicit connection credentials". Fix once per
+    Refreshing before binding credentials fails with one of the two errors
+    above. Fix once per
     model:
   1. Open the workspace &rarr; the semantic model &rarr; **Settings** (gear
      icon or `...` &rarr; Settings).

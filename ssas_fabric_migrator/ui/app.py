@@ -117,7 +117,11 @@ STEP_DESCRIPTIONS = {
         "in-place - this step automatically deletes and recreates the item instead. "
         "Afterwards it also triggers a refresh and waits for it to finish, so the "
         "model is immediately ready for reports - without this, Fabric shows stale "
-        "or missing data until someone manually clicks 'Refresh now' in the portal."
+        "or missing data until someone manually clicks 'Refresh now' in the portal. "
+        "For an Import-mode model's very first deploy, this refresh is expected to "
+        "fail with a warning (not an error) until you bind connection credentials "
+        "once in the Fabric portal - the model itself still deploys successfully; "
+        "see README Step 7."
     ),
 }
 
