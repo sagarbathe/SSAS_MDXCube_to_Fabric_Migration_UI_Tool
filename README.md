@@ -149,10 +149,26 @@ the section with full details/troubleshooting.
    .venv-ui\Scripts\python.exe -m pip install -r <repo_path>\requirements-ui.txt
    ```
    Same troubleshooting as step 3 applies if this install fails.
-5. **Launch the Web UI**:
+5. **Launch the Web UI** using the included launcher, which also handles
+   the SSAS admin-permission requirement automatically (see the note
+   below):
    ```powershell
-   .venv-ui\Scripts\python.exe -m streamlit run <repo_path>\ssas_fabric_migrator\ui\app.py
+   .\run_ui.ps1
    ```
+   (or just double-click **`run_ui.bat`** in File Explorer). You'll see
+   one Windows **User Account Control** prompt - click **Yes**; this
+   launches the UI with an elevated token so every pipeline step run from
+   the browser (including AMO/SSAS calls) inherits admin rights, without
+   needing a separate elevated terminal, SSMS, or any step outside the
+   browser UI. See
+   [Section 4's SSAS Server Administrator/UAC note](#ssas-server-administrator-permission-and-windows-uac)
+   for why this is necessary.
+   - If you'd rather launch without elevation (e.g. your account is
+     already a recognized SSAS Server Administrator by name, not just via
+     the local Administrators group), run Streamlit directly instead:
+     ```powershell
+     .venv-ui\Scripts\python.exe -m streamlit run <repo_path>\ssas_fabric_migrator\ui\app.py
+     ```
    This opens `http://localhost:8501` in your browser (or prints the URL
    to open manually).
    - `'streamlit' is not recognized`/module-not-found errors mean step 4's
@@ -189,9 +205,11 @@ the section with full details/troubleshooting.
      account running the app isn't recognized as an SSAS **Server
      Administrator** in this session - often because UAC filters out an
      Administrators-group membership in a non-elevated process even
-     though the account is a real admin. See
+     though the account is a real admin. If you didn't launch the UI with
+     `run_ui.ps1`/`run_ui.bat` in step 5, do that instead - it fixes this
+     automatically via a single UAC prompt, entirely from the UI. See
      [Section 4's UAC/Server Administrator troubleshooting](#ssas-server-administrator-permission-and-windows-uac)
-     for a quick (elevated session) and permanent (SSMS) fix.
+     for that and other fixes.
    - A `pythonnet`/`clr` import error on Extract means the .NET Framework
      4.x runtime (required by AMO) isn't installed - also covered in
      [Section 3](#3-prerequisites).
@@ -485,22 +503,47 @@ Either the '<domain>\<user>' user does not have permission to alter the
 '<database>' object, or the object does not exist.
 ```
 
-If you hit this, pick one of:
+**Recommended fix - launch the Web UI with `run_ui.ps1` / `run_ui.bat`
+(repo root):** this is the only option that requires **no steps outside
+the browser UI**. Double-click `run_ui.bat` (or run `.\run_ui.ps1` from a
+PowerShell prompt in the repo root) instead of calling
+`streamlit run ...` directly. The script detects that it isn't running
+elevated, re-launches itself via a single Windows UAC consent prompt
+(click **Yes**), and then starts Streamlit from that elevated process.
+Every pipeline step you subsequently click in the browser is a child
+process of that elevated session, so it inherits an admin-capable token
+and AMO calls succeed - you never need SSMS, a separate elevated
+terminal, or any other out-of-UI step. You only see the one UAC prompt,
+once, each time you start the app.
 
-- **Option A (one-time, permanent - recommended):** add your own account
-  explicitly to the SSAS Server Administrator role, so you never need an
-  elevated session again:
+If you'd rather not elevate the whole app (e.g. for a permanent, no-prompt
+setup), the older manual options are still available, with an important
+caveat discovered during testing: **Option A below only works if your
+machine is actually joined to your account's AD domain.** Some machines
+sign in with a corporate identity like `CONTOSO\you` (so `$env:USERDOMAIN`
+shows `CONTOSO`) while the machine itself is **not** domain-joined (check
+with `Get-WmiObject Win32_ComputerSystem | Select PartOfDomain, Domain` -
+if `PartOfDomain` is `False`/`Domain` is `WORKGROUP`, you're in this
+situation). On such machines, SSMS's account picker cannot validate the
+domain account at all and fails with *"The following object is not from a
+domain listed in the Select Location dialog box..."* - Option A is not
+achievable there, and `run_ui.ps1`/Option B are the only viable fixes.
+
+- **Option A (one-time, permanent - only on domain-joined machines):**
+  add your own account explicitly to the SSAS Server Administrator role,
+  so you never need an elevated session again:
   1. Open **SQL Server Management Studio** via **"Run as administrator"**.
   2. Connect to your Analysis Services instance (e.g. `<machine>\SSAS`).
   3. Right-click the server node -> **Properties** -> **Security** tab ->
      **Add...** -> type your account (e.g. `<domain>\<you>`) -> **OK**.
-  4. Close SSMS. Ordinary, non-elevated sessions (including the Web UI)
-     now work without any further UAC workaround.
-- **Option B (quick, one-off):** open your PowerShell/command prompt via
-  **"Run as administrator"** and re-run the failing script/step from
-  there. This only fixes that one elevated session - you'd hit the same
-  error again running the (non-elevated) Web UI or a new terminal window
-  unless you also do Option A.
+  4. Close SSMS. Ordinary, non-elevated sessions (including the Web UI
+     launched without `run_ui.ps1`) now work without any further UAC
+     workaround.
+- **Option B (quick, one-off, manual terminal):** open your PowerShell/
+  command prompt via **"Run as administrator"** and re-run the failing
+  script/step from there. This only fixes that one elevated session -
+  you'd hit the same error again running the (non-elevated) Web UI or a
+  new terminal window unless you also do Option A or use `run_ui.ps1`.
 
 ---
 
