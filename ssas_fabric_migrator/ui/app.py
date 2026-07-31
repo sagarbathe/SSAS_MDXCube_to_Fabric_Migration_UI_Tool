@@ -212,14 +212,15 @@ def save_env_file(path: str):
 def _stream_subprocess(cmd, log_area):
     log_lines = [f"$ {' '.join(cmd)}", ""]
     log_area.code("\n".join(log_lines), language="text")
-    proc = subprocess.Popen(
-        cmd, cwd=REPO_ROOT, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-        text=True, bufsize=1,
-    )
-    for line in proc.stdout:  # type: ignore[union-attr]
-        log_lines.append(line.rstrip("\n"))
-        log_area.code("\n".join(log_lines), language="text")
-    proc.wait()
+    with st.spinner("Running... this may take a while depending on the step."):
+        proc = subprocess.Popen(
+            cmd, cwd=REPO_ROOT, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            text=True, bufsize=1,
+        )
+        for line in proc.stdout:  # type: ignore[union-attr]
+            log_lines.append(line.rstrip("\n"))
+            log_area.code("\n".join(log_lines), language="text")
+        proc.wait()
     return proc.returncode
 
 
@@ -465,7 +466,8 @@ def render_phase2_tab():
         with col_a:
             if st.button("Refresh list of Lakehouses", type="primary"):
                 try:
-                    st.session_state["available_lakehouses"] = list_lakehouses()
+                    with st.spinner("Listing Lakehouses in the Fabric workspace..."):
+                        st.session_state["available_lakehouses"] = list_lakehouses()
                     st.success(f"Found {len(st.session_state['available_lakehouses'])} Lakehouse(s).")
                 except Exception as e:
                     st.error(f"Could not list Lakehouses: {e}")
