@@ -94,6 +94,27 @@ the section with full details/troubleshooting.
         (instead of the bare `python` command) for every remaining step,
         since a machine can have both an ARM64 and an x64 Python installed
         side by side.
+   - **If you already have a separate x64 Python installed somewhere**
+     (e.g. `C:\Users\<you>\Python312-x64\`) but the bare `python` command
+     still resolves to `win-arm64`, that folder simply isn't on your
+     `PATH` (or is listed after the ARM64 one). You can keep using the
+     x64 interpreter's full path explicitly everywhere (as steps 3+
+     below do) - no PATH change is required. If you'd rather fix this
+     permanently so a bare `python` always resolves to x64, add the x64
+     folder to your **User** `PATH` **ahead of** the ARM64 entry:
+     ```powershell
+     $x64 = "C:\Users\<you>\Python312-x64\"
+     $x64Scripts = "C:\Users\<you>\Python312-x64\Scripts\"
+     $current = [Environment]::GetEnvironmentVariable('PATH','User')
+     [Environment]::SetEnvironmentVariable('PATH', "$x64;$x64Scripts;$current", 'User')
+     ```
+     (substitute your actual x64 folder path in both lines above). Then
+     **close every open terminal/IDE window and open a brand new one** -
+     PATH changes only take effect in processes started after the change;
+     the terminal you ran that command in will not itself pick it up.
+     Verify with
+     `python -c "import sysconfig; print(sysconfig.get_platform())"` in
+     the new window.
 
 3. **Create an isolated environment for the pipeline dependencies** and
    install `requirements.txt` into it (keeps these packages out of your
