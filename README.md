@@ -151,16 +151,32 @@ the section with full details/troubleshooting.
    Same troubleshooting as step 3 applies if this install fails.
 5. **Launch the Web UI** using the included launcher, which also handles
    the SSAS admin-permission requirement automatically (see the note
-   below):
-   ```powershell
-   .\run_ui.ps1
-   ```
-   (or just double-click **`run_ui.bat`** in File Explorer). You'll see
-   one Windows **User Account Control** prompt - click **Yes**; this
-   launches the UI with an elevated token so every pipeline step run from
-   the browser (including AMO/SSAS calls) inherits admin rights, without
-   needing a separate elevated terminal, SSMS, or any step outside the
-   browser UI. See
+   below). **Both Command Prompt and PowerShell work** - use whichever
+   you already have open in `<repo_path>` from the earlier steps:
+   - In **Command Prompt (cmd.exe)**, just type the filename (`.bat`
+     files run natively):
+     ```
+     run_ui.bat
+     ```
+   - In **PowerShell**, either run the `.bat` the same way, or call the
+     script directly (note: plain `.\run_ui.ps1` may be blocked by
+     PowerShell's execution policy on some machines, so `-ExecutionPolicy
+     Bypass` is the more reliable form):
+     ```powershell
+     powershell -ExecutionPolicy Bypass -File run_ui.ps1
+     ```
+   - You can also just double-click **`run_ui.bat`** in File Explorer -
+     no terminal needed at all.
+
+   Whichever you use, you'll see one Windows **User Account Control**
+   prompt - click **Yes**. This opens a **new, separate elevated
+   PowerShell window** that actually runs Streamlit and shows its logs;
+   your original terminal (with the `.venv`/`.venv-ui` history from
+   earlier steps) is unaffected and just returns to its prompt - you can
+   leave it open or close it, it doesn't matter. The new elevated window
+   means every pipeline step run from the browser (including AMO/SSAS
+   calls) inherits admin rights, without needing a separate elevated
+   terminal, SSMS, or any step outside the browser UI. See
    [Section 4's SSAS Server Administrator/UAC note](#ssas-server-administrator-permission-and-windows-uac)
    for why this is necessary.
    - If you'd rather launch without elevation (e.g. your account is
