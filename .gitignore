@@ -14,6 +14,7 @@ output/
 .DS_Store
 Thumbs.db
 
-# Isolated virtual environment for the optional Streamlit UI (Section 11) -
-# create your own locally, never commit it
+# Isolated virtual environments (pipeline deps and Web UI deps) -
+# create your own locally, never commit them
+.venv/
 .venv-ui/

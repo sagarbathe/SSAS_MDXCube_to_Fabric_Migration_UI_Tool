@@ -50,15 +50,16 @@ links to the section with full details/troubleshooting.
 2. **Find your x64 Python interpreter** ([Section 4](#4-install-dependencies)) -
    run `python -c "import sysconfig; print(sysconfig.get_platform())"` and
    confirm `win-amd64`, not `win-arm64`. Note its full path.
-3. **Install the pipeline dependencies** (used by the CLI and by every
-   step the UI runs under the hood) into that x64 interpreter directly -
-   no venv needed for this one:
+3. **Create an isolated environment for the pipeline dependencies** and
+   install `requirements.txt` into it (keeps these packages out of your
+   global/system Python and avoids clashing with other projects):
    ```powershell
-   <path-to-x64-python>\python.exe -m pip install -r requirements.txt
+   <path-to-x64-python>\python.exe -m venv .venv
+   .venv\Scripts\python.exe -m pip install -r requirements.txt
    ```
-4. **Create an isolated environment for the Web UI itself** and install
-   its (much smaller) dependency set - see [Section 11](#11-web-ui) for
-   why this must be a *separate* environment from step 3:
+4. **Create a second, isolated environment for the Web UI itself** and
+   install its (much smaller) dependency set - see [Section 11](#11-web-ui)
+   for why this must be a *separate* environment from step 3:
    ```powershell
    <path-to-x64-python>\python.exe -m venv .venv-ui
    .venv-ui\Scripts\python.exe -m pip install -r requirements-ui.txt
@@ -70,10 +71,10 @@ links to the section with full details/troubleshooting.
    This opens `http://localhost:8501` in your browser (or prints the URL
    to open manually).
 6. **On the Configuration tab**, set "Python executable" to the
-   **step-3 x64 `python.exe` path** (not `.venv-ui`'s interpreter - see
-   [Section 11](#11-web-ui) for why), fill in your SSAS/SQL/Fabric
-   connection details, and click **Save to env file** to write
-   `config/.env`.
+   **step-3 `.venv\Scripts\python.exe` path** (not `.venv-ui`'s
+   interpreter - see [Section 11](#11-web-ui) for why), fill in your
+   SSAS/SQL/Fabric connection details, and click **Save to env file** to
+   write `config/.env`.
 7. **Run Phase 1: On-Prem** tab, in order - Extract, Feasibility, Generate
    model, Migration report ([Section 5](#5-phase-1-on-prem-ssas--sql-server)).
    Review `feasibility_report.json` and `MIGRATION_REPORT.md` in the
@@ -306,16 +307,23 @@ python -c "import sysconfig; print(sysconfig.get_platform())"
 
 Once you have the x64 interpreter's path, **always call it explicitly**
 rather than relying on bare `python`/`pip` (which may keep resolving to
-the ARM64 one):
+the ARM64 one). It's recommended to create a dedicated virtual
+environment first (this is what the [Quickstart](#quickstart-test-the-tool-end-to-end)
+above does), rather than installing into the system/global interpreter:
 
 ```powershell
-<path-to-x64-python>\python.exe -m pip install -r requirements.txt
+<path-to-x64-python>\python.exe -m venv .venv
+.venv\Scripts\python.exe -m pip install -r requirements.txt
 ```
 
-e.g. `C:\Users\<you>\Python312-x64\python.exe -m pip install -r requirements.txt`.
-Every command in this README that runs a pipeline step, the UI, or
-installs a dependency should use this same explicit x64 `python.exe` path
-- substitute your own path anywhere you see `<path-to-x64-python>`.
+e.g. `C:\Users\<you>\Python312-x64\python.exe -m venv .venv`. Once created,
+`.venv\Scripts\python.exe` is itself the interpreter to use for every
+subsequent `pip`/CLI command - no need to reference the original x64 path
+again. Every command in this README that runs a pipeline step or the CLI
+should use this same `.venv\Scripts\python.exe` path (substitute your own
+if you name/locate the environment differently, or skip the venv and
+install directly into `<path-to-x64-python>\python.exe` if you prefer a
+single shared environment).
 
 Run this on every machine that will execute any step (Phase 1 machine,
 Phase 2 machine, or both if they are the same box).
