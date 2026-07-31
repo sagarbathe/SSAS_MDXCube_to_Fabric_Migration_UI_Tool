@@ -1,15 +1,21 @@
-# SSAS Multidimensional (MDX) Cube → Microsoft Fabric Migration Tool
+# SSAS Multidimensional (MDX) Cube → Microsoft Fabric Migration Tool (with Web UI)
 
 A code-based accelerator that migrates an on-premises **SQL Server Analysis
 Services (SSAS) Multidimensional** cube to **Microsoft Fabric**, producing a
 Direct Lake (or Import, with documented reasons) Power BI semantic model
-backed by Delta tables in a Fabric Lakehouse.
+backed by Delta tables in a Fabric Lakehouse. This repository includes a
+built-in **Streamlit Web UI** ([Section 11](#11-web-ui)) as the primary,
+no-code way to drive the whole pipeline from a browser - every step is also
+available as a CLI command for scripting/automation, but the Web UI is a
+core, fully-supported part of this tool, not a bolt-on extra. (Looking for a
+pure code-first/CLI-only version with no UI? See
+[SSAS_MDXCube_to_Fabric_Migration_Tool](https://github.com/sagarbathe/SSAS_MDXCube_to_Fabric_Migration_Tool).)
 
 ---
 
 ## Getting Started: Get This Repo Onto Your Machine (Do This First)
 
-Every step below - including installing/running the optional [Web UI](#11-web-ui-optional-no-code-alternative-to-the-cli)
+Every step below - including installing/running the [Web UI](#11-web-ui)
 in Section 11 - assumes you already have a local copy of this repository on
 whichever machine(s) you'll run it from. Do this before anything else:
 
@@ -717,8 +723,9 @@ ssas_fabric_migrator/
                                             Phase 2, Step 6 (--target onelake / --target upload)
   deploy/fabric_client.py                  Phase 2, Steps 5/7 - Fabric REST API client
   cli/orchestrator.py                      Chains all steps via one command, phase-aware
-  ui/app.py                                Optional Streamlit web UI (Section 11) - thin
-                                            wrapper around orchestrator.py, no new logic
+  ui/app.py                                Streamlit web UI (Section 11) - the primary
+                                            no-code interface; a thin wrapper around
+                                            orchestrator.py, no new pipeline logic
   sample-output/                           Reference MIGRATION_REPORT.md/feasibility_report.json/
                                             MANUAL_TRANSLATION_REQUIRED.md produced by a real run
                                             against AutoInsuranceCubeDemo (see Section 10)
@@ -827,12 +834,15 @@ requirements-ui.txt                        Additional dependency (streamlit) for
   is therefore generated as Markdown, as a sibling of `definition/` rather
   than inside it.
 
-## 11. Web UI (optional, no-code alternative to the CLI)
+## 11. Web UI
 
-A lightweight [Streamlit](https://streamlit.io) web app is included so
-users can drive the whole pipeline from a browser instead of typing CLI
-commands - it is a thin wrapper around the same modules the CLI uses
-(`orchestrator.py` and friends); it adds no new pipeline logic. `app.py`
+A [Streamlit](https://streamlit.io) web app is included as the **primary,
+no-code way to use this tool** - drive the whole pipeline from a browser
+instead of typing CLI commands. It is a thin wrapper around the same
+modules the CLI uses (`orchestrator.py` and friends); it adds no new
+pipeline logic, and every CLI command remains available for scripting/
+automation, but the Web UI is a core part of this tool, not an optional
+add-on. `app.py`
 itself has **no dependency on pandas/pyarrow/pythonnet/deltalake** - it
 only shells out via subprocess to whichever Python interpreter you
 configure in its "Python executable" field, exactly like calling the CLI
