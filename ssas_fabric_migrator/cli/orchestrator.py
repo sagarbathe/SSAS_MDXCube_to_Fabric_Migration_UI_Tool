@@ -100,7 +100,7 @@ def run_pipeline(env, steps, args):
     # standalone "extract" (or "analyze") run fails with FileNotFoundError
     # for files that later steps (not requested this time) would produce.
     ir = None
-    if {"analyze", "generate", "report"} & steps:
+    if {"analyze", "generate", "report", "migrate-data"} & steps:
         if not os.path.exists(metadata_path):
             raise FileNotFoundError(
                 f"{metadata_path} not found - run the 'extract' step first."
