@@ -93,15 +93,33 @@ def run_pipeline(env, steps, args):
         print(f"[1/7] Extracting cube metadata from {env['SSAS_SERVER']}/{env['SSAS_DATABASE']} ...")
         amo_client.extract_to_json(env["SSAS_SERVER"], env["SSAS_DATABASE"], metadata_path)
 
-    with open(metadata_path, "r", encoding="utf-8") as f:
-        ir = json.load(f)
+    # The UI (and CLI --steps) may run each Phase 1 step on its own, one
+    # click/invocation at a time, relying on artifacts a *previous*
+    # invocation already wrote to disk. Only re-read those artifacts here
+    # if a step in *this* invocation actually needs them - otherwise a
+    # standalone "extract" (or "analyze") run fails with FileNotFoundError
+    # for files that later steps (not requested this time) would produce.
+    ir = None
+    if {"analyze", "generate", "report"} & steps:
+        if not os.path.exists(metadata_path):
+            raise FileNotFoundError(
+                f"{metadata_path} not found - run the 'extract' step first."
+            )
+        with open(metadata_path, "r", encoding="utf-8") as f:
+            ir = json.load(f)
 
     if "analyze" in steps:
         print("[2/7] Running Direct Lake feasibility analysis ...")
         feasibility.analyze_file(metadata_path, feasibility_path)
 
-    with open(feasibility_path, "r", encoding="utf-8") as f:
-        feasibility_report = json.load(f)
+    feasibility_report = None
+    if {"generate", "report"} & steps:
+        if not os.path.exists(feasibility_path):
+            raise FileNotFoundError(
+                f"{feasibility_path} not found - run the 'analyze' step first."
+            )
+        with open(feasibility_path, "r", encoding="utf-8") as f:
+            feasibility_report = json.load(f)
 
     if "generate" in steps:
         print("[3/7] Generating TMDL semantic model + Fabric notebook scripts ...")
