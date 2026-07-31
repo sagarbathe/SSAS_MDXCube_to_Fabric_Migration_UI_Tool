@@ -184,10 +184,14 @@ the section with full details/troubleshooting.
    model, Migration report ([Section 5](#5-phase-1-on-prem-ssas--sql-server)).
    Review `feasibility_report.json` and `MIGRATION_REPORT.md` in the
    **Reports** tab before continuing.
-   - **Extract** failing with an AMO connection/permission error usually
-     means the Windows account running the app lacks the **Server
-     Administrator** (or Database Administrator) role on the SSAS instance
-     - see the Phase 1 prerequisites table in [Section 3](#3-prerequisites).
+   - **Extract** failing with `"...user does not have permission to
+     alter..."` or `"Database ... not found"` usually means the Windows
+     account running the app isn't recognized as an SSAS **Server
+     Administrator** in this session - often because UAC filters out an
+     Administrators-group membership in a non-elevated process even
+     though the account is a real admin. See
+     [Section 4's UAC/Server Administrator troubleshooting](#ssas-server-administrator-permission-and-windows-uac)
+     for a quick (elevated session) and permanent (SSMS) fix.
    - A `pythonnet`/`clr` import error on Extract means the .NET Framework
      4.x runtime (required by AMO) isn't installed - also covered in
      [Section 3](#3-prerequisites).
@@ -465,6 +469,39 @@ single shared environment).
 Run this on every machine that will execute any step (Phase 1 machine,
 Phase 2 machine, or both if they are the same box).
 
+### SSAS "Server Administrator" permission and Windows UAC
+
+Phase 1's AMO calls (`extract`, and the demo-cube-setup deploy scripts)
+require the connecting Windows account to hold the **Server
+Administrator** role on the SSAS instance (see [Section 3](#3-prerequisites)).
+Even if your account is a member of the local/domain **Administrators**
+group, a **non-elevated** process (a normal terminal window, or the
+Streamlit UI launched normally) runs with that membership **filtered out**
+by User Account Control (UAC) - so SSAS sees you as a non-admin and AMO
+calls fail with an error like:
+
+```
+Either the '<domain>\<user>' user does not have permission to alter the
+'<database>' object, or the object does not exist.
+```
+
+If you hit this, pick one of:
+
+- **Option A (one-time, permanent - recommended):** add your own account
+  explicitly to the SSAS Server Administrator role, so you never need an
+  elevated session again:
+  1. Open **SQL Server Management Studio** via **"Run as administrator"**.
+  2. Connect to your Analysis Services instance (e.g. `<machine>\SSAS`).
+  3. Right-click the server node -> **Properties** -> **Security** tab ->
+     **Add...** -> type your account (e.g. `<domain>\<you>`) -> **OK**.
+  4. Close SSMS. Ordinary, non-elevated sessions (including the Web UI)
+     now work without any further UAC workaround.
+- **Option B (quick, one-off):** open your PowerShell/command prompt via
+  **"Run as administrator"** and re-run the failing script/step from
+  there. This only fixes that one elevated session - you'd hit the same
+  error again running the (non-elevated) Web UI or a new terminal window
+  unless you also do Option A.
+
 ---
 
 ## 5. Phase 1: On-Prem (SSAS + SQL Server)
@@ -492,9 +529,9 @@ python -m ssas_fabric_migrator.extractor.amo_client `
   `data_source_views` are populated (not empty arrays) and table/column
   names match your source schema.
 - If you instead get "Database ... not found" or a permission error, your
-  session is not recognized as an AS admin - rerun elevated, or add your
-  account as an AS Server Administrator via SSMS (Object Explorer → server
-  → Properties → Security).
+  session is not recognized as an AS admin - see [Section 4's UAC/Server
+  Administrator troubleshooting](#ssas-server-administrator-permission-and-windows-uac)
+  for both a quick (elevated session) and permanent (SSMS) fix.
 
 **Limitations of this step:** the extractor reads dimensions, attributes,
 hierarchies, measure groups, measures, calculated members, KPIs, and the
