@@ -39,9 +39,21 @@ the repo onto each machine that will run any step.
 ## Quickstart: Test the Tool End-to-End
 
 Use this checklist the first time you set up a machine, from a bare clone
-to a fully working migration run through the Web UI. Every command below
-assumes you're in the repo root folder from the step above. Each item
-links to the section with full details/troubleshooting.
+to a fully working migration run through the Web UI.
+
+**Before running any command below, `cd` into `<repo_path>`** (the folder
+from the "Getting Started" step above) and stay there for the rest of
+this checklist:
+```powershell
+cd <repo_path>
+```
+Every command below is written to be run **from that folder** - if you
+run them from somewhere else (e.g. from inside `Python312-x64` or any
+other folder), `.venv`/`.venv-ui` will be created in the wrong place and
+later steps will fail with errors like `No module named streamlit`. If
+that happens, delete the misplaced `.venv`/`.venv-ui` folder, `cd` back
+into `<repo_path>`, and re-run the step. Each item below also links to
+the section with full details/troubleshooting.
 
 1. **Check prerequisites** ([Section 3](#3-prerequisites)) - confirm you
    have the right Windows account/roles for SSAS (AMO), SQL Server access,
