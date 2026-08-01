@@ -26,6 +26,7 @@ UI itself does not need to be installed on every analyst's machine.
 """
 from __future__ import annotations
 
+import html
 import json
 import os
 import re
@@ -215,9 +216,28 @@ def save_env_file(path: str):
             f.write(f"{key}={st.session_state['env_values'].get(key, '')}\n")
 
 
+def _render_log(log_area, text):
+    """
+    Renders subprocess output in a fixed-height, scrollable box instead of
+    st.code()'s default (long lines force a horizontal scrollbar, which is
+    awkward for wide tracebacks/paths). Wraps long lines instead
+    (white-space: pre-wrap + word-break) and scrolls vertically once the
+    content is taller than the box - no horizontal scrolling needed.
+    """
+    escaped = html.escape(text)
+    log_area.markdown(
+        '<div style="max-height: 420px; overflow-y: auto; overflow-x: hidden; '
+        'white-space: pre-wrap; word-break: break-word; font-family: '
+        '\'Source Code Pro\', monospace; font-size: 0.85em; line-height: 1.4; '
+        'padding: 0.75em 1em; border-radius: 0.5rem; border: 1px solid rgba(128,128,128,0.3); '
+        f'background-color: rgba(128,128,128,0.1);">{escaped}</div>',
+        unsafe_allow_html=True,
+    )
+
+
 def _stream_subprocess(cmd, log_area):
     log_lines = [f"$ {' '.join(cmd)}", ""]
-    log_area.code("\n".join(log_lines), language="text")
+    _render_log(log_area, "\n".join(log_lines))
     with st.spinner("Running... this may take a while depending on the step."):
         proc = subprocess.Popen(
             cmd, cwd=REPO_ROOT, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
@@ -225,7 +245,7 @@ def _stream_subprocess(cmd, log_area):
         )
         for line in proc.stdout:  # type: ignore[union-attr]
             log_lines.append(line.rstrip("\n"))
-            log_area.code("\n".join(log_lines), language="text")
+            _render_log(log_area, "\n".join(log_lines))
         proc.wait()
     return proc.returncode
 
