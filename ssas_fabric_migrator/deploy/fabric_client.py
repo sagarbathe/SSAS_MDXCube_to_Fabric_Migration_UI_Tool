@@ -136,6 +136,44 @@ class FabricClient:
             r = self._post(f"/workspaces/{workspace_id}/semanticModels", body)
             return self._await_lro_or_body(r, workspace_id, name, "SemanticModel")
 
+    def list_connections(self):
+        """Lists every cloud/on-prem/VNet connection the caller (service principal)
+        has permission for - used to find the object ID of a connection created
+        by hand in the Fabric portal (e.g. "Manage connections and gateways")
+        so it can be bound to a semantic model's data source via the API,
+        bypassing the "Gateway connections" UI picker when it doesn't show the
+        connection (a known Fabric portal caching/visibility issue)."""
+        items = []
+        path = "/connections"
+        while path:
+            page = self._get(path)
+            items.extend(page.get("value", []))
+            token = page.get("continuationToken")
+            path = f"/connections?continuationToken={token}" if token else None
+        return items
+
+    def bind_semantic_model_connection(self, workspace_id, semantic_model_id, connection_id, sql_path,
+                                        connectivity_type="ShareableCloud"):
+        """Binds the semantic model's SQL data source reference to an existing
+        Fabric connection object, equivalent to picking it in the semantic
+        model's Settings > Gateway connections UI. sql_path must match the
+        data source exactly as Fabric sees it: "<server>;<database>"."""
+        body = {
+            "connectionBinding": {
+                "id": connection_id,
+                "connectivityType": connectivity_type,
+                "connectionDetails": {"type": "SQL", "path": sql_path},
+            }
+        }
+        r = requests.post(
+            f"{FABRIC_API_BASE}/workspaces/{workspace_id}/semanticModels/{semantic_model_id}/bindConnection",
+            headers=self._headers(),
+            json=body,
+        )
+        if r.status_code != 200:
+            raise RuntimeError(f"bindConnection failed: {r.status_code} {r.text}")
+        return r
+
     def _powerbi_headers(self):
         # Refreshing a dataset/semantic model is exposed via the Power BI
         # REST API, not the Fabric REST API - it needs a separate AAD token

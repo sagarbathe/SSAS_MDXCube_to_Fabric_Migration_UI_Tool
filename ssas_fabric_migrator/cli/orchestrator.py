@@ -75,6 +75,37 @@ def load_env(env_path):
     return env
 
 
+def _patch_expressions_tmdl(tmdl_dir, workspace_id, lakehouse_id, endpoint, lakehouse_name):
+    """
+    Patches the TODO_SET_* placeholders left by tmdl_generator into the
+    generated expressions.tmdl. Idempotent (replacing text that isn't
+    present is a no-op), so it's safe to call this again right before
+    deploy-model even if deploy-lake already patched it earlier - this
+    guards against the case where Phase 1's "Generate TMDL" step is re-run
+    (which always writes fresh, unpatched placeholders) after the Lakehouse
+    already exists, so deploy-lake is skipped on a later run and the stale
+    placeholders would otherwise get deployed to Fabric verbatim.
+    """
+    expr_path = os.path.join(tmdl_dir, "definition", "expressions.tmdl")
+    if not os.path.exists(expr_path):
+        return
+    with open(expr_path, "r", encoding="utf-8") as f:
+        content = f.read()
+    # OneLakeSource (used by directLake partitions - Direct Lake ON
+    # ONELAKE, not "Direct Lake on SQL") needs the workspace + this
+    # Lakehouse's GUID.
+    content = content.replace("TODO_SET_WORKSPACE_ID", workspace_id)
+    content = content.replace("TODO_SET_LAKEHOUSE_ID", lakehouse_id)
+    # DatabaseQuery (SQL analytics endpoint) is only used as a fallback for
+    # Import-mode partitions - still patched in case feasibility
+    # recommended Import for this cube.
+    if endpoint:
+        content = content.replace("TODO_SET_LAKEHOUSE_SQL_ENDPOINT", endpoint)
+        content = content.replace("TODO_SET_LAKEHOUSE_NAME", lakehouse_name)
+    with open(expr_path, "w", encoding="utf-8") as f:
+        f.write(content)
+
+
 def run_pipeline(env, steps, args):
     from ssas_fabric_migrator.extractor import amo_client
     from ssas_fabric_migrator.model import feasibility, tmdl_generator
@@ -144,23 +175,7 @@ def run_pipeline(env, steps, args):
         endpoint = client.get_lakehouse_sql_endpoint(env["FABRIC_WORKSPACE_ID"], lakehouse["id"])
         print(f"    Lakehouse id: {lakehouse['id']}")
         print(f"    SQL endpoint: {endpoint}")
-        expr_path = os.path.join(tmdl_dir, "definition", "expressions.tmdl")
-        if os.path.exists(expr_path):
-            with open(expr_path, "r", encoding="utf-8") as f:
-                content = f.read()
-            # OneLakeSource (used by directLake partitions - Direct Lake ON
-            # ONELAKE, not "Direct Lake on SQL") needs the workspace + this
-            # Lakehouse's GUID.
-            content = content.replace("TODO_SET_WORKSPACE_ID", env["FABRIC_WORKSPACE_ID"])
-            content = content.replace("TODO_SET_LAKEHOUSE_ID", lakehouse["id"])
-            # DatabaseQuery (SQL analytics endpoint) is only used as a
-            # fallback for Import-mode partitions - still patched in case
-            # feasibility recommended Import for this cube.
-            if endpoint:
-                content = content.replace("TODO_SET_LAKEHOUSE_SQL_ENDPOINT", endpoint)
-                content = content.replace("TODO_SET_LAKEHOUSE_NAME", args.lakehouse_name)
-            with open(expr_path, "w", encoding="utf-8") as f:
-                f.write(content)
+        _patch_expressions_tmdl(tmdl_dir, env["FABRIC_WORKSPACE_ID"], lakehouse["id"], endpoint, args.lakehouse_name)
 
     if "migrate-data" in steps:
         print(f"[6/7] Migrating star-schema tables from {env['SQL_SERVER']}/{env['SQL_DATABASE']} to OneLake ...")
@@ -191,6 +206,18 @@ def run_pipeline(env, steps, args):
 
     if "deploy-model" in steps:
         print(f"[7/7] Deploying semantic model '{args.semantic_model_name}' ...")
+        # Re-patch the TODO_SET_* placeholders unconditionally, even if
+        # deploy-lake already ran (in this invocation or a previous one) -
+        # if Phase 1's "Generate TMDL" step was re-run afterwards (e.g.
+        # after a feasibility re-run or fixing a table), it always writes
+        # fresh, unpatched placeholders, and deploy-lake is normally skipped
+        # on a later run once the Lakehouse already exists. Without this,
+        # the model would deploy with literal "TODO_SET_..." text as its
+        # SQL connection string instead of the real endpoint.
+        if lakehouse is None:
+            lakehouse = client.create_lakehouse(env["FABRIC_WORKSPACE_ID"], args.lakehouse_name)
+        endpoint = client.get_lakehouse_sql_endpoint(env["FABRIC_WORKSPACE_ID"], lakehouse["id"])
+        _patch_expressions_tmdl(tmdl_dir, env["FABRIC_WORKSPACE_ID"], lakehouse["id"], endpoint, args.lakehouse_name)
         client.create_semantic_model(env["FABRIC_WORKSPACE_ID"], args.semantic_model_name, tmdl_dir)
         print(f"    Semantic model '{args.semantic_model_name}' deployed successfully.")
         # Fetch the item fresh by name rather than trusting
