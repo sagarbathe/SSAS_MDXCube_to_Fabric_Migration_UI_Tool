@@ -175,7 +175,6 @@ def init_state():
     st.session_state.setdefault("lakehouse_mode", "existing")
     st.session_state.setdefault("lakehouse_name", "RetailLakehouse")
     st.session_state.setdefault("available_lakehouses", [])
-    st.session_state.setdefault("table_prefix", "")
     st.session_state.setdefault("local_export_dir", "output\\delta")
     st.session_state.setdefault("local_delta_dir", "output\\delta")
     st.session_state.setdefault("migration_method", "direct")
@@ -240,7 +239,6 @@ def run_steps(steps: list[str], log_area):
         "--output-dir", st.session_state["output_dir"],
         "--lakehouse-name", st.session_state["lakehouse_name"],
         "--semantic-model-name", st.session_state["env_values"].get("SEMANTIC_MODEL_NAME", "RetailCubeDemo"),
-        "--table-prefix", st.session_state["table_prefix"],
     ]
     if "upload-data" in steps:
         cmd += ["--local-delta-dir", st.session_state["local_delta_dir"]]
@@ -558,16 +556,6 @@ def render_phase2_tab():
             "New Lakehouse name", value=st.session_state["lakehouse_name"]
         )
 
-    st.session_state["table_prefix"] = st.text_input(
-        "Delta table name prefix (optional)",
-        value=st.session_state["table_prefix"],
-        help=(
-            "Prepended to each Delta table's name inside the Lakehouse (e.g. 'stg_Dim_Date'). "
-            "Useful when sharing one Lakehouse across multiple cube migrations. Leave blank for "
-            "no prefix. The semantic model's table names shown in Power BI are unaffected - only "
-            "the underlying physical Lakehouse table name changes."
-        ),
-    )
     if st.button("Deploy / find Lakehouse", key="p2_deploy_lake", type="primary"):
         run_steps(["deploy-lake"], st.empty())
 

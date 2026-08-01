@@ -1246,21 +1246,21 @@ Markdown/JSON - the Word export preserves headings/tables/bullets (with
 severity-highlighted rows), and the Excel export is a two-sheet workbook
 (a per-cube Summary sheet plus a color-coded Findings sheet).
 
-### Lakehouse selection and table-name prefixing
+### Lakehouse selection
 
 The Phase 2 tab's Step 5 lets you either pick an existing Lakehouse from
 a dropdown (click **Refresh list of Lakehouses**, which lists items via
 the Fabric REST API) or create a new one by name - both map to the same
 underlying `deploy-lake` step and `FabricClient.create_lakehouse()`
-find-or-create logic. You can also set an optional **Delta table name
-prefix** (e.g. `stg_`), useful when sharing one Lakehouse across several
-cube migrations. The prefix applies only to the *physical* Delta table
-name written into the Lakehouse (and the corresponding TMDL partition
-binding) - it does not change the source SQL table name, the local
-export folder name, or the logical table name shown in the Power BI
-semantic model. This is also available on the CLI directly via
-`--table-prefix` on `orchestrator.py` (`generate`, `migrate-data`,
-`upload-data` steps) or `datamover/loader.py`.
+find-or-create logic. Delta table names in the Lakehouse always match the
+source SQL table name exactly (and so does the corresponding TMDL
+partition binding / logical table name in the semantic model) - there is
+no table-name-prefixing option, to keep the physical Lakehouse table name,
+the TMDL binding, and the model's logical table name always in sync with
+no extra configuration step to get wrong. **This means each cube should
+use its own Lakehouse** - migrating two cubes that share a same-named
+table (e.g. both have a `Dim_Date`) into the same Lakehouse will overwrite
+one with the other.
 
 ### Choosing a data-migration method in the UI
 

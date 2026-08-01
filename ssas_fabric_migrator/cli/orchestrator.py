@@ -123,7 +123,7 @@ def run_pipeline(env, steps, args):
 
     if "generate" in steps:
         print("[3/7] Generating TMDL semantic model + Fabric notebook scripts ...")
-        tmdl_generator.generate_tmdl(ir, feasibility_report, tmdl_dir, table_prefix=args.table_prefix)
+        tmdl_generator.generate_tmdl(ir, feasibility_report, tmdl_dir)
         from ssas_fabric_migrator.datamover.notebook_script_generator import generate_all_notebook_scripts
 
         generate_all_notebook_scripts(ir, notebooks_dir)
@@ -167,7 +167,7 @@ def run_pipeline(env, steps, args):
         if lakehouse is None:
             lakehouse = client.find_item(env["FABRIC_WORKSPACE_ID"], args.lakehouse_name, "Lakehouse")
         results = datamover_loader.migrate_all_tables(
-            ir, env["SQL_SERVER"], env["SQL_DATABASE"], "onelake", table_prefix=args.table_prefix,
+            ir, env["SQL_SERVER"], env["SQL_DATABASE"], "onelake",
             workspace_id=env["FABRIC_WORKSPACE_ID"], lakehouse_id=lakehouse["id"],
             credential=client.credential,
         )
@@ -184,7 +184,7 @@ def run_pipeline(env, steps, args):
         results = datamover_loader.upload_all_local_tables(
             args.local_delta_dir,
             env["FABRIC_WORKSPACE_ID"], lakehouse["id"],
-            credential=client.credential, table_prefix=args.table_prefix,
+            credential=client.credential,
         )
         for table_name, info in results.items():
             print(f"    {table_name}: {info['rows']} rows -> {info['path']}")
@@ -249,12 +249,6 @@ if __name__ == "__main__":
     parser.add_argument("--output-dir", default="output")
     parser.add_argument("--lakehouse-name", default="RetailLakehouse")
     parser.add_argument("--semantic-model-name", default="RetailCubeDemo")
-    parser.add_argument(
-        "--table-prefix", default="",
-        help="Optional prefix applied to the Delta table names created in the Lakehouse (e.g. "
-             "'stg_') and threaded through the generated TMDL's physical table bindings to match. "
-             "Does not affect source SQL table names or logical Tabular table names in the model.",
-    )
     parser.add_argument(
         "--local-delta-dir", default=None,
         help="Folder of locally-exported Delta tables to upload (required for the upload-data step)",
