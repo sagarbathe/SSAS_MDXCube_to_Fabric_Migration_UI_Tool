@@ -1062,97 +1062,36 @@ requirements-ui.txt                        Additional dependency (streamlit) for
 
 ## 10. Limitations
 
-- **Windows ARM64 is not supported for running the tool itself.** `pyarrow`,
-  `cryptography`, and `deltalake` have no prebuilt wheels for Windows ARM64
-  as of this writing, and there is no Rust/C toolchain assumed to build them
-  from source. Run the tool with an x64 Python interpreter (works fine under
-  Windows-on-ARM x64 emulation).
-- **MDX calculated members and KPIs are never auto-translated to DAX.** MDX
-  and DAX are not mechanically equivalent languages; an automatic
-  translation would risk silently producing incorrect numbers. These are
-  extracted and listed (with their original MDX text) in
-  `MANUAL_TRANSLATION_REQUIRED.tmdl` and in the Migration Conversion
-  Report, for a human to hand-author as DAX measures.
-- **Parent-child hierarchies are flagged, not converted.** Direct Lake does
-  not support the `PATH()`-based calculated columns Tabular normally uses
-  for parent-child; this requires precomputing the hierarchy path as a
-  physical column in the Lakehouse table, which is a data-modeling decision
-  this tool does not make on your behalf.
-- **Semi-additive aggregations** (`AverageOfChildren`, `ByAccount`,
-  `FirstChild`/`LastChild`, `FirstNonEmpty`/`LastNonEmpty`) have no direct
-  DAX aggregation function equivalent; they are flagged as warnings and
-  require a hand-written `CALCULATE` + time-intelligence DAX pattern.
-- **Many-to-many measure group dimension relationships** are flagged for
-  manual review; the required bridge table must be materialized as its own
-  Delta table, which this tool does not currently automate.
-- **Row-Level Security (RLS)/roles, Actions, Perspectives, Translations,
-  custom rollup formulas/unary operators, write-back, and MDX `SCOPE`
-  assignments are not extracted at all** - the extractor has no code path
-  for them, so they are silently absent unless you check for them manually
-  (see [Section 4 of the Migration Conversion Report](#8-the-migration-conversion-report)).
-- **`migrate-data` requires simultaneous on-prem + Fabric connectivity from
-  one machine.** For environments where that is not possible, use the
-  local export (`loader.py --target local`) + `upload-data` bridge instead
-  (see [Section 2](#2-two-phase-design-on-prem-vs-fabric-connected) and
-  [Section 6](#6-phase-2-fabric-connected)); for very large fact tables,
-  this single-machine, in-memory (`pandas`/`pyarrow`) approach will not
-  scale as well as a gateway-fed Fabric pipeline or Spark-based load - use
-  the generated notebook scripts (Step 3) as a starting point for that path
-  instead if data volumes are large. See [Section 7](#7-alternative-data-migration-options-for-review)
-  for a fuller comparison of Fabric-native alternatives (Mirroring, Open
-  Mirroring, Data Factory, Dataflows Gen2, Spark notebooks) - none of which
-  are currently implemented in this tool's code.
-- **One semantic model per cube, one measure group per cube assumed** in
-  the current TMDL generator. Cubes with multiple measure groups (multiple
-  fact tables) will need the generator extended to emit multiple fact
-  tables/relationship sets - not yet implemented.
-- **ROLAP and write-back partitions** are treated as blocking for Direct
-  Lake (falls back to Import) because they imply the source is not a simple
-  queryable table snapshot; no automated ETL redesign is attempted for
-  these.
-- **Validated against two demo cubes**: a 3-dimension, 1-fact-table retail
-  star schema (`Sum`/`Count` measures only, no calculated members/KPIs/
-  parent-child hierarchies) and a 5-dimension, 1-fact-table auto insurance
-  claims star schema (traditional claims measures, a geography dimension
-  with latitude/longitude coordinates). The auto insurance cube was later
-  extended with a parent-child hierarchy (`Dim_Date` self-referencing
-  rollup), two calculated members (Loss Ratio, Claim Severity), and a KPI
-  (Loss Ratio KPI) specifically to exercise the "flagged for manual
-  review" reporting path end-to-end - see
-  `ssas_fabric_migrator/sample-output/AutoInsuranceCubeDemo/MIGRATION_REPORT.md`
-  for the real report this produced (parent-child correctly forces
-  `Import` mode; calculated members/KPI are listed for hand-authoring in
-  DAX). Larger/more complex production cubes (multiple measure groups,
-  RLS, Actions, Perspectives) should still be run through Phase 1 Steps 2
-  and 4 carefully, and the generated TMDL reviewed before being treated as
-  production-ready.
-- **Switching an already-deployed Semantic Model between storage modes is
-  not supported in-place by Fabric.** If a cube is redeployed after a
-  schema change that flips the recommended mode (e.g., adding a
-  parent-child attribute forces Direct Lake &rarr; Import), the Fabric
-  Dataset API rejects the `updateDefinition` call with
-  `Dataset_Import_FailedToImportDataset` ("Converting existing tables or
-  partitions from Direct Lake to other storage modes is not supported").
-  `deploy-model` detects this specific error and automatically falls back
-  to deleting and recreating the Semantic Model item - this means the
-  item's GUID changes and any downstream reports bound to the old item ID
-  must be re-pointed.
-- **Import-mode models require a one-time manual credential binding in the
-  Fabric portal before the first refresh succeeds** (`Premium_ASWL_Error`:
-  "uses a default data connection without explicit connection
-  credentials"). The generated M query already points at the Fabric
-  Lakehouse's own SQL analytics endpoint, not the on-prem SQL Server - the
-  error is only about the connection having no stored credentials, since
-  the item was created via the REST API. See the credential-binding steps
-  under [Step 7](#step-7-deploy-the-semantic-model). Not automatable via
-  the public Fabric REST API today.
-- **Any human-readable placeholder/notes file must live outside the TMDL
-  `definition/` folder.** Fabric's Dataset workload parses every file
-  under `definition/` as strict TMDL syntax; a `.tmdl`-extension file
-  containing free-form comments with no top-level TMDL object fails with
-  `TMDL Format Error: Unexpected line type: Other`. `MANUAL_TRANSLATION_REQUIRED.md`
-  is therefore generated as Markdown, as a sibling of `definition/` rather
-  than inside it.
+- **MDX calculated members, KPIs, and parent-child hierarchies are not
+  auto-converted.** They're extracted and flagged (with original MDX) in
+  `MANUAL_TRANSLATION_REQUIRED.md` and the
+  [Migration Conversion Report](#8-the-migration-conversion-report) for
+  manual DAX authoring - an automatic translation risks silently wrong
+  numbers, and Direct Lake doesn't support the `PATH()` columns
+  parent-child normally needs.
+- **Semi-additive measures and many-to-many relationships** are flagged
+  for manual review, not auto-converted (no direct DAX equivalent / needs
+  a materialized bridge table).
+- **RLS/roles, Actions, Perspectives, Translations, custom rollups,
+  write-back, and MDX `SCOPE` are not extracted at all** - check for these
+  manually before treating a cube as fully migrated.
+- **`migrate-data` needs simultaneous on-prem + Fabric connectivity from
+  one machine**; use the local export/upload bridge instead for isolated
+  networks, or a Fabric-native pipeline for large fact tables - see
+  [Section 6](#6-phase-2-fabric-connected) and
+  [Section 7](#7-alternative-data-migration-options-for-review).
+- **Storage mode (Direct Lake ⟷ Import) can't be switched in-place** on an
+  already-deployed model; `deploy-model` detects this and automatically
+  deletes/recreates the item instead - note the item's GUID changes, so
+  re-point any downstream reports.
+- **Import-mode models need a one-time manual credential binding** in the
+  Fabric portal before their first refresh succeeds - not automatable via
+  the public Fabric REST API today. See [Step 7](#step-7-deploy-the-semantic-model).
+- **Windows ARM64 is not supported** for running the tool itself
+  (`pyarrow`/`deltalake` have no ARM64 wheels) - use an x64 Python
+  interpreter, per [Section 3](#3-prerequisites).
+- **One semantic model / one measure group per cube is assumed** by the
+  TMDL generator; cubes with multiple fact tables aren't yet supported.
 
 ## 11. Web UI
 

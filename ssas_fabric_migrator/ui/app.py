@@ -45,6 +45,35 @@ README_GITHUB_URL = (
     "https://github.com/sagarbathe/SSAS_MDXCube_to_Fabric_Migration_UI_Tool/blob/main/README.md"
 )
 
+# GitHub's auto-generated heading anchors for every README.md section this app refers users
+# to by number/name - kept as a lookup instead of re-deriving them at runtime so every
+# "see README Section N" mention in the UI can be a real clickable link instead of dead
+# plain text. Must be kept in sync with README.md's actual "## N. Title" headings.
+README_SECTION_ANCHORS = {
+    "1": "1-purpose--objective",
+    "2": "2-two-phase-design-on-prem-vs-fabric-connected",
+    "3": "3-prerequisites",
+    "4": "4-install-dependencies",
+    "5": "5-phase-1-on-prem-ssas--sql-server",
+    "6": "6-phase-2-fabric-connected",
+    "7": "7-alternative-data-migration-options-for-review",
+    "8": "8-the-migration-conversion-report",
+    "9": "9-repository-structure",
+    "10": "10-limitations",
+    "11": "11-web-ui",
+    "step-7": "step-7-deploy-the-semantic-model",
+    "quickstart": "quickstart-test-the-tool-end-to-end",
+}
+
+
+def _readme_link(section_key: str, label: str) -> str:
+    """Returns a Markdown link to a specific README.md section on GitHub, e.g.
+    _readme_link("10", "Section 10") -> "[Section 10](https://.../README.md#10-limitations)".
+    Used everywhere the UI mentions a README section by number so it's a real click-through
+    instead of plain text the user has to go find manually."""
+    anchor = README_SECTION_ANCHORS[section_key]
+    return f"[{label}]({README_GITHUB_URL}#{anchor})"
+
 ENV_FIELDS = [
     ("SSAS_SERVER", "On-prem SSAS server\\instance", False, "LAPTOP-LQVSA8VE\\SSAS"),
     ("SSAS_DATABASE", "On-prem SSAS database (cube) name", False, "RetailCubeDemo"),
@@ -122,7 +151,7 @@ STEP_DESCRIPTIONS = {
         "For an Import-mode model's very first deploy, this refresh is expected to "
         "fail with a warning (not an error) until you bind connection credentials "
         "once in the Fabric portal - the model itself still deploys successfully; "
-        "see README Step 7."
+        f"see README {_readme_link('step-7', 'Step 7')}."
     ),
 }
 
@@ -357,14 +386,14 @@ def render_readme_tab():
     limitations_key = next((k for k in sections if k.startswith("10.")), None)
 
     st.divider()
-    st.subheader("What this tool DOES (Section 1: Purpose / Objective)")
+    st.markdown(f"### What this tool DOES ({_readme_link('1', 'Section 1: Purpose / Objective')})")
     if purpose_key:
         st.markdown(_rewrite_readme_anchors(sections[purpose_key]))
     else:
         st.info("Purpose/Objective section not found in README.md.")
 
     st.divider()
-    st.subheader("What this tool CANNOT do / Limitations (Section 10)")
+    st.markdown(f"### What this tool CANNOT do / Limitations ({_readme_link('10', 'Section 10')})")
     if limitations_key:
         st.markdown(_rewrite_readme_anchors(sections[limitations_key]))
     else:
@@ -455,7 +484,7 @@ def render_config_tab():
         disabled=True,
         help=(
             "Auto-detected as <repo_root>\\.venv\\Scripts\\python.exe - the x64 interpreter "
-            "with pythonnet/pandas/pyarrow/deltalake installed per the README Quickstart. "
+            f"with pythonnet/pandas/pyarrow/deltalake installed per the README {_readme_link('quickstart', 'Quickstart')}. "
             "Every pipeline step subprocess runs with this interpreter."
         ),
     )
@@ -632,7 +661,8 @@ def render_phase2_tab():
             "This tool's own approach (direct pyodbc + `deltalake` write, above) is simple and "
             "dependency-light, but is a one-shot batch snapshot with no CDC/incremental support. "
             "For production/enterprise scenarios, Fabric offers these more robust, natively-"
-            "supported options instead - see README Section 7 for the full comparison table:"
+            f"supported options instead - see README {_readme_link('7', 'Section 7')} for the "
+            "full comparison table:"
         )
         for name, desc in ALT_DATA_OPTIONS:
             st.markdown(f"- **{name}** - {desc}")
@@ -695,7 +725,7 @@ def main():
             "Configuration tab (client ID/secret) - it must be a **member/contributor** "
             "of the target workspace.\n"
             "- Import-mode semantic models need a one-time manual credential binding "
-            "in the Fabric portal after `deploy-model` - see README Section 10."
+            f"in the Fabric portal after `deploy-model` - see README {_readme_link('10', 'Section 10')}."
         )
 
     tab_readme, tab_config, tab_phase1, tab_phase2, tab_reports = st.tabs(
