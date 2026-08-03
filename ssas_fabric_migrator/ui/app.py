@@ -420,7 +420,7 @@ def render_config_tab():
     col1, col2 = st.columns([3, 1])
     with col1:
         st.session_state["env_file"] = st.text_input(
-            "Env file path (relative to repo root, or absolute)",
+            "Env file path (relative to repo root)",
             value=st.session_state["env_file"],
         )
     with col2:
@@ -433,21 +433,7 @@ def render_config_tab():
             except Exception as e:
                 st.error(f"Could not load: {e}")
 
-    env_path_for_display = st.session_state["env_file"]
-    full_env_path = (
-        env_path_for_display if os.path.isabs(env_path_for_display)
-        else os.path.join(REPO_ROOT, env_path_for_display)
-    )
-    exists_note = "exists" if os.path.exists(full_env_path) else "does not exist yet - will be created on Save"
-    st.info(
-        f"This env file lives on disk **relative to wherever you cloned/downloaded this "
-        f"repository** on this machine (`{REPO_ROOT}` on this particular machine right "
-        f"now) - it will resolve to a different folder automatically on someone else's "
-        f"machine or a different clone location:\n\n`{full_env_path}`\n\n"
-        f"({exists_note}) - open it directly in a text editor if you'd rather edit it "
-        f"outside this UI. It's git-ignored, so its contents (including secrets) are "
-        f"never committed to the repo."
-    )
+    st.caption("Open the `.env` file directly in a text editor if you'd rather edit it outside this UI.")
 
     with st.form("env_form"):
         for key, label, is_secret, _default in ENV_FIELDS:
