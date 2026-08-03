@@ -223,6 +223,12 @@ $partition.Source = New-Object Microsoft.AnalysisServices.DsvTableBinding($dsv.I
 # ---------------- Calculated members (MDX, not auto-translatable to DAX) ----------------
 if ($cube.MdxScripts.Count -eq 0) { $mdxScript = $cube.MdxScripts.Add("MdxScript") } else { $mdxScript = $cube.MdxScripts[0] }
 
+# CALCULATE must be the first command in the script - without it, base measures
+# never aggregate from the partition and every cell returns null.
+$cmdCalculate = New-Object Microsoft.AnalysisServices.Command
+$cmdCalculate.Text = "CALCULATE;"
+$mdxScript.Commands.Add($cmdCalculate) | Out-Null
+
 $cmdLossRatio = New-Object Microsoft.AnalysisServices.Command
 $cmdLossRatio.Text = "CREATE MEMBER CURRENTCUBE.[Measures].[Loss Ratio] AS IIF([Measures].[Incurred Amount] = 0, NULL, [Measures].[Paid Amount] / [Measures].[Incurred Amount]), FORMAT_STRING = '0.00%', VISIBLE = 1;"
 $mdxScript.Commands.Add($cmdLossRatio) | Out-Null

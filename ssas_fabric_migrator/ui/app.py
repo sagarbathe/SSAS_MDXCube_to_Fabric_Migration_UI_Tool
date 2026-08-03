@@ -594,7 +594,12 @@ def render_phase2_tab():
         with col_b:
             names = [lh["displayName"] for lh in st.session_state["available_lakehouses"]]
             if names:
-                st.session_state["lakehouse_name"] = st.selectbox("Existing Lakehouse", options=names)
+                current = st.session_state.get("lakehouse_name")
+                default_index = names.index(current) if current in names else 0
+                st.session_state["lakehouse_name"] = st.selectbox(
+                    "Existing Lakehouse", options=names, index=default_index,
+                    key="existing_lakehouse_selectbox",
+                )
             else:
                 st.session_state["lakehouse_name"] = st.text_input(
                     "Existing Lakehouse name (click 'Refresh list' above to pick from a dropdown instead)",

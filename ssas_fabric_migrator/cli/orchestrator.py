@@ -77,33 +77,46 @@ def load_env(env_path):
 
 def _patch_expressions_tmdl(tmdl_dir, workspace_id, lakehouse_id, endpoint, lakehouse_name):
     """
-    Patches the TODO_SET_* placeholders left by tmdl_generator into the
-    generated expressions.tmdl. Idempotent (replacing text that isn't
-    present is a no-op), so it's safe to call this again right before
-    deploy-model even if deploy-lake already patched it earlier - this
-    guards against the case where Phase 1's "Generate TMDL" step is re-run
-    (which always writes fresh, unpatched placeholders) after the Lakehouse
-    already exists, so deploy-lake is skipped on a later run and the stale
-    placeholders would otherwise get deployed to Fabric verbatim.
+    (Re)writes expressions.tmdl's OneLakeSource/DatabaseQuery expressions
+    with the given Lakehouse's real workspace/id/endpoint/name.
+
+    This *regenerates* the two expressions from scratch rather than doing a
+    TODO_SET_* placeholder text-replace on the existing file. A pure
+    text-replace approach is not safe to call more than once with different
+    values: after the first successful patch, the TODO_SET_* placeholders
+    no longer exist in the file, so a later re-run (e.g. the user switches
+    to a different Lakehouse without re-running Phase 1's "Generate TMDL"
+    step first) would silently leave the previous Lakehouse's stale
+    name/id/endpoint in place - deploy-model would then deploy against the
+    wrong Lakehouse with no error or warning. Regenerating deterministically
+    every time this is called guarantees the file always reflects whichever
+    Lakehouse was passed in, regardless of what ran before it.
     """
     expr_path = os.path.join(tmdl_dir, "definition", "expressions.tmdl")
     if not os.path.exists(expr_path):
         return
-    with open(expr_path, "r", encoding="utf-8") as f:
-        content = f.read()
-    # OneLakeSource (used by directLake partitions - Direct Lake ON
-    # ONELAKE, not "Direct Lake on SQL") needs the workspace + this
-    # Lakehouse's GUID.
-    content = content.replace("TODO_SET_WORKSPACE_ID", workspace_id)
-    content = content.replace("TODO_SET_LAKEHOUSE_ID", lakehouse_id)
-    # DatabaseQuery (SQL analytics endpoint) is only used as a fallback for
-    # Import-mode partitions - still patched in case feasibility
-    # recommended Import for this cube.
-    if endpoint:
-        content = content.replace("TODO_SET_LAKEHOUSE_SQL_ENDPOINT", endpoint)
-        content = content.replace("TODO_SET_LAKEHOUSE_NAME", lakehouse_name)
+    endpoint_value = endpoint or "TODO_SET_LAKEHOUSE_SQL_ENDPOINT"
+    lakehouse_name_value = lakehouse_name or "TODO_SET_LAKEHOUSE_NAME"
+    expr_tmdl = (
+        "expression OneLakeSource =\n"
+        "\t\tlet\n"
+        "\t\t\tSource = AzureStorage.DataLake(\"https://onelake.dfs.fabric.microsoft.com/"
+        + workspace_id + "/" + lakehouse_id + "\", [HierarchicalNavigation=true])\n"
+        "\t\tin\n"
+        "\t\t\tSource\n"
+        "\tlineageTag: onelake-source-expression\n"
+        "\tannotation PBI_ResultType = Table\n"
+        "\n"
+        "expression DatabaseQuery =\n"
+        "\t\tlet\n"
+        "\t\t\tSource = Sql.Database(\"" + endpoint_value + "\", \"" + lakehouse_name_value + "\")\n"
+        "\t\tin\n"
+        "\t\t\tSource\n"
+        "\tlineageTag: databaseQuery-expression\n"
+        "\tannotation PBI_ResultType = Table\n"
+    )
     with open(expr_path, "w", encoding="utf-8") as f:
-        f.write(content)
+        f.write(expr_tmdl)
 
 
 def run_pipeline(env, steps, args):
